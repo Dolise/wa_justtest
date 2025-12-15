@@ -538,16 +538,23 @@ def click_next_button(driver, device_name: str, phone_number: str):
         else:
             print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
         
-        # Выбираем "Аудиозвонок" (кликаем по строке списка)
-        print("\n⏳ Ищу 'Аудиозвонок' (строка списка)...")
+        # Выбираем "Аудиозвонок" (тап по чекбоксу через его реальные координаты)
+        print("\n⏳ Ищу 'Аудиозвонок' и тапаю по чекбоксу...")
         try:
             voice_row = driver.find_element(
                 AppiumBy.XPATH,
                 '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
             )
-            voice_row.click()
-            print("✓ Выбрана строка 'Аудиозвонок'")
-            time.sleep(2)
+            voice_checkbox = voice_row.find_element(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
+            )
+            box = voice_checkbox.rect
+            tap_x = box["x"] + box["width"] // 2
+            tap_y = box["y"] + box["height"] // 2
+            driver.tap([(tap_x, tap_y)])
+            print(f"✓ Тап по 'Аудиозвонок' @ ({tap_x},{tap_y})")
+            time.sleep(1)
         except Exception as e:
             print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
         
