@@ -60,15 +60,15 @@ def main():
     adb_port = 21503 + (index * 10)
     device_name = f"127.0.0.1:{adb_port}"
 
-    # 7. Устанавливаем SocksDroid (для прокси)
-    apk_proxy = "socksdroid.apk"
+
+    # 7. Устанавливаем ProxyDroid
+    apk_proxy = "proxydroid.apk"
     if os.path.exists(apk_proxy):
         print(f"🌍 Устанавливаю {apk_proxy}...")
-        # memuc installapp -i <index> <apk_path>
         run_memuc(["installapp", "-i", str(index), os.path.abspath(apk_proxy)])
-        print(f"✓ Proxy приложение установлено")
+        print(f"✓ ProxyDroid установлен")
     else:
-        print(f"⚠️  Файл {apk_proxy} не найден, пропуск установки прокси-клиента")
+        print(f"⚠️  Файл {apk_proxy} не найден")
 
     # 8. Устанавливаем WhatsApp
     apk_wa = "whatsapp.apk"

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="isConnecting" value="false" />
+    <string name="host">na.proxy.piaproxy.com</string>
+    <string name="port">5000</string>
+    <string name="user">user-mtt33_A0xiF-region-ru</string>
+    <string name="proxyType">socks5</string>
+    <boolean name="isAuth" value="true" />
+    <string name="password">nskjfdbnker4G</string>
+    <boolean name="isAutoConnect" value="true" />
+</map>
