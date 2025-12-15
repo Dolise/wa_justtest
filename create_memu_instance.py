@@ -46,10 +46,12 @@ def main():
     run_memuc(["setconfigex", "-i", str(index), "resolution_height", "1280"])
     run_memuc(["setconfigex", "-i", str(index), "v_dpi", "240"])
 
-    # 4. Настраиваем рендер (DirectX)
+    # 4. Настраиваем рендер (DirectX) и Root
     # graphics_render_mode: 0 = OpenGL, 1 = DirectX
-    print("⚙️  Включаю DirectX...")
+    print("⚙️  Включаю DirectX и Root...")
     run_memuc(["setconfigex", "-i", str(index), "graphics_render_mode", "1"])
+    run_memuc(["setconfigex", "-i", str(index), "is_root_mode", "1"])
+
 
     # 5. Запускаем
     print(f"▶️  Запускаю инстанс {index}...")
@@ -99,9 +101,9 @@ def main():
             subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", remote_conf], check=True)
             print("✓ Конфиг ProxyDroid загружен")
             
-            # Start app to apply (или можно через broadcast если поддерживается)
-            subprocess.run([ADB_PATH, "-s", device_name, "shell", "monkey", "-p", "org.proxydroid", "1"], capture_output=True)
-            print("✓ ProxyDroid запущен")
+            # Не запускаем приложение здесь, сделаем это в main.py через Appium (для обработки диалогов Root)
+            # subprocess.run([ADB_PATH, "-s", device_name, "shell", "monkey", "-p", "org.proxydroid", "1"], capture_output=True)
+            
         except Exception as e:
              print(f"⚠️ Ошибка настройки ProxyDroid: {e}")
     else:
