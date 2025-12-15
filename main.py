@@ -541,11 +541,12 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Выбираем "Voice call" радиобаттон
         print("\n⏳ Ищу 'Voice call' / 'Аудиозвонок' (radio)...")
         voice_btn = None
+        # Прямо по resource-id текста варианта
         voice_selectors = [
-            'new UiSelector().text("Voice call").className("android.widget.CheckedTextView")',
-            'new UiSelector().text("Аудиозвонок").className("android.widget.CheckedTextView")',
-            'new UiSelector().textContains("Voice").className("android.widget.CheckedTextView")',
-            'new UiSelector().textContains("удио").className("android.widget.CheckedTextView")',
+            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").text("Аудиозвонок")',
+            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Voice call")',
+            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Аудио")',
+            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Voice")',
         ]
         for sel in voice_selectors:
             try:
@@ -559,17 +560,28 @@ def click_next_button(driver, device_name: str, phone_number: str):
             print("✓ Выбран голосовой звонок")
             time.sleep(2)
         else:
-            print("⚠️  'Voice call'/'Аудиозвонок' не найден")
+            # Фолбэк: кликаем последний radio по id чекбокса
+            try:
+                radios = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")')
+                if radios:
+                    radios[-1].click()
+                    print("✓ Клик по последнему radio (fallback)")
+                    time.sleep(2)
+                else:
+                    print("⚠️  Радио не найдено вовсе")
+            except Exception as e:
+                print(f"⚠️  Не удалось кликнуть radio fallback: {e}")
         
         # Нажимаем CONTINUE
         print("\n⏳ Ищу кнопку 'CONTINUE' / 'Продолжить'...")
         cont_btn = None
         cont_selectors = [
-            'new UiSelector().text("CONTINUE").clickable(true)',
+            'new UiSelector().resourceId("com.whatsapp:id/continue_button").clickable(true)',
+            'new UiSelector().text("ПРОДОЛЖИТЬ").clickable(true)',
             'new UiSelector().text("Продолжить").clickable(true)',
+            'new UiSelector().text("CONTINUE").clickable(true)',
             'new UiSelector().textContains("CONTINUE").clickable(true)',
             'new UiSelector().textContains("родолж").clickable(true)',
-            'new UiSelector().resourceId("com.whatsapp:id/continue_button").clickable(true)',
         ]
         for sel in cont_selectors:
             try:
