@@ -404,7 +404,7 @@ def main():
     adb.run_shell("pm clear com.whatsapp")
     
     # 3. Настройка прокси
-    setup_proxydroid(adb)
+    # setup_proxydroid(adb)
     
     # 4. Регистрация
     register_whatsapp(adb, phone_number)
