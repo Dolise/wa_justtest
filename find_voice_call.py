@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 from appium import webdriver
 from appium.webdriver.common.appiumby import AppiumBy
 
@@ -24,9 +25,9 @@ def connect_driver(device_name: str):
 def try_find_voice_call(driver, device):
     """
     Кликаем вариант "Аудиозвонок":
-    - находим строку, где reg_method_name = "Аудиозвонок"
-    - берём её checkbox (reg_method_checkbox)
-    - тапаем по центру checkbox (координаты) через adb, чтобы не схлопывалась шторка
+    - ищем строку (reg_method_name="Аудиозвонок")
+    - берём чекбокс reg_method_checkbox
+    - тапаем по центру через adb (использует ADB_PATH или просто adb)
     """
     try:
         row = driver.find_element(
@@ -37,12 +38,12 @@ def try_find_voice_call(driver, device):
             AppiumBy.ANDROID_UIAUTOMATOR,
             'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
         )
-        box = radio.rect
-        tap_x = box["x"] + box["width"] // 2
-        tap_y = box["y"] + box["height"] // 2
+        rect = radio.rect
+        tap_x = rect["x"] + rect["width"] // 2
+        tap_y = rect["y"] + rect["height"] // 2
         adb = os.getenv("ADB_PATH", "adb")
-        os.system(f'"{adb}" -s {device} shell input tap {tap_x} {tap_y}')
-        print(f"✓ Tap по checkbox 'Аудиозвонок' через adb @ ({tap_x}, {tap_y})")
+        subprocess.run([adb, "-s", device, "shell", "input", "tap", str(tap_x), str(tap_y)], check=True)
+        print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y})")
         return True
     except Exception as e:
         print(f"MISS 'Аудиозвонок': {e}")
