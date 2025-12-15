@@ -21,7 +21,7 @@ if not os.path.exists(ADB_PATH):
     ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
 
 # MEMU device ID (замени на свой если другой инстанс)
-MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21513")
+MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21503")
 USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
 
 
@@ -814,11 +814,18 @@ def main():
             install_whatsapp(device_name)
             print("✓ WhatsApp установлен")
             
-            # 3. Открыть WhatsApp
-            open_whatsapp(device_name)
-            
-            # 4. Подключиться через Appium
+            # 4. Подключиться через Appium (к Settings, без запуска WA)
+            # Примечание: connect_appium уже поправлен на com.android.settings
             driver = connect_appium(device_name)
+            
+            # 4.1 Настроить Proxy (SuperProxy)
+            if not setup_superproxy(driver):
+                print("⚠️ Не удалось настроить прокси, но пробую продолжить...")
+            
+            # 4.2 Запустить WhatsApp через драйвер
+            print("📱 Запускаю WhatsApp...")
+            driver.activate_app("com.whatsapp")
+            time.sleep(5)
             
             # 5. Кликнуть "Согласиться"
             click_agree_button(driver)
