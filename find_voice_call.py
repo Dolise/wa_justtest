@@ -22,21 +22,26 @@ def connect_driver(device_name: str):
 
 
 def try_find_voice_call(driver):
-    # Точный xpath по дампу: строка списка, где reg_method_name = "Аудиозвонок"
-    xpaths = [
-        '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]',
-        '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and contains(@text,"Voice call")]]',
-    ]
-    for xp in xpaths:
-        try:
-            el = driver.find_element(AppiumBy.XPATH, xp)
-            print(f"FOUND voice row by xpath: {xp}")
-            el.click()
-            print("CLICKED voice row")
-            return True
-        except Exception as e:
-            print(f"MISS  voice row by xpath: {xp} -> {e}")
-    return False
+    """
+    Кликаем radio "Аудиозвонок" без фолбеков:
+    - Находим строку, где reg_method_name = "Аудиозвонок"
+    - Внутри неё ищем reg_method_checkbox и жмём
+    """
+    try:
+        row = driver.find_element(
+            AppiumBy.XPATH,
+            '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
+        )
+        radio = row.find_element(
+            AppiumBy.ANDROID_UIAUTOMATOR,
+            'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
+        )
+        radio.click()
+        print("✓ Клик по radio 'Аудиозвонок'")
+        return True
+    except Exception as e:
+        print(f"MISS 'Аудиозвонок': {e}")
+        return False
 
 
 def try_find_continue(driver):
