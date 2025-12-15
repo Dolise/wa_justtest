@@ -306,7 +306,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79683093884"
+    phone_number = "79809794798"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
