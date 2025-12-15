@@ -256,9 +256,9 @@ def register_whatsapp(adb: ADBController, phone_number: str):
     adb.click_element(text="Not now", timeout=1)
     adb.click_element(text="Не сейчас", timeout=0.5)
 
-    if adb.click_element(text="Verify another way", timeout=10) or \
-       adb.click_element(text="другим способом", timeout=1) or \
-       adb.click_element(text="Подтвердить другим способом", timeout=1):
+    if adb.click_element(text="Подтвердить другим способом", timeout=10) or \
+       adb.click_element(text="Verify another way", timeout=2) or \
+       adb.click_element(text="другим способом", timeout=1):
         print("✓ Выбрал другой способ")
         time.sleep(1)
         
