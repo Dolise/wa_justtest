@@ -25,23 +25,35 @@ def connect_driver(device_name: str):
 def try_find_voice_call(driver, device):
     """
     Кликаем вариант "Аудиозвонок":
-    - ищем строку (reg_method_name="Аудиозвонок")
-    - берём чекбокс reg_method_checkbox
-    - тапаем по центру через adb (использует ADB_PATH или просто adb)
+    - перечисляем все reg_method_name и reg_method_checkbox
+    - находим индекс с текстом "Аудиозвонок"
+    - тапаем по центру соответствующего checkbox через adb (MEmu adb)
     """
+    adb = r"C:\Program Files\Microvirt\MEmu\adb.exe"
     try:
-        row = driver.find_element(
-            AppiumBy.XPATH,
-            '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
-        )
-        radio = row.find_element(
-            AppiumBy.ANDROID_UIAUTOMATOR,
-            'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
-        )
-        rect = radio.rect
-        tap_x = rect["x"] + rect["width"] // 2
-        tap_y = rect["y"] + rect["height"] // 2
-        adb = r"C:\Program Files\Microvirt\MEmu\adb.exe"
+        names = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_name")')
+        boxes = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")')
+        if not names or not boxes:
+            print("MISS: нет reg_method_name или reg_method_checkbox")
+            return False
+
+        target_idx = None
+        for idx, el in enumerate(names):
+            try:
+                txt = el.text
+            except Exception:
+                txt = ""
+            print(f"[{idx}] reg_method_name = '{txt}'")
+            if txt.strip() == "Аудиозвонок":
+                target_idx = idx
+
+        if target_idx is None or target_idx >= len(boxes):
+            print("MISS: 'Аудиозвонок' не найден среди reg_method_name")
+            return False
+
+        box = boxes[target_idx].rect
+        tap_x = box["x"] + box["width"] // 2
+        tap_y = box["y"] + box["height"] // 2
         subprocess.run([adb, "-s", device, "shell", "input", "tap", str(tap_x), str(tap_y)], check=True)
         print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y}) через {adb}")
         return True
