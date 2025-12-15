@@ -249,20 +249,38 @@ def connect_appium(device_name: str, appium_port: int = 4723):
 def click_agree_button(driver):
     """Кликнуть по кнопке 'Согласиться и продолжить'"""
     try:
-        # Ищем кнопку "AGREE AND CONTINUE" или "Принять и продолжить"
-        print("⏳ Ищем кнопку согласия...")
-        try:
-            # Пытаемся русский вариант
-            agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Принять и продолжить").clickable(true)')
-            print("✓ Найдена русская версия кнопки")
-        except:
-            # Fallback на английский
-            agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("AGREE AND CONTINUE").clickable(true)')
-            print("✓ Найдена английская версия кнопки")
-        
-        agree_btn.click()
-        print("✓ Нажата кнопка согласия")
+        # Даём время на загрузку
+        print("⏳ Жду загрузки экрана (2 сек)...")
         time.sleep(2)
+        
+        # Ищем кнопку "AGREE AND CONTINUE" или "Принять и продолжить"
+        print("⏳ Ищем кнопку согласия (polling до 15 сек)...")
+        max_attempts = 30  # 30 попыток по 0.5 сек = 15 секунд
+        agree_btn = None
+        
+        for attempt in range(max_attempts):
+            try:
+                # Пытаемся русский вариант
+                agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Принять и продолжить").clickable(true)')
+                print(f"✓ Найдена русская версия кнопки на попытке {attempt + 1}")
+                break
+            except:
+                try:
+                    # Fallback на английский
+                    agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("AGREE AND CONTINUE").clickable(true)')
+                    print(f"✓ Найдена английская версия кнопки на попытке {attempt + 1}")
+                    break
+                except:
+                    if attempt % 10 == 0 and attempt > 0:
+                        print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
+                    time.sleep(0.5)
+        
+        if agree_btn:
+            agree_btn.click()
+            print("✓ Нажата кнопка согласия")
+            time.sleep(2)
+        else:
+            print("⚠️  Кнопка согласия не найдена за 15 сек")
     except Exception as e:
         print(f"✗ Ошибка: {e}")
 
