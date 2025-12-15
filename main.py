@@ -554,7 +554,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             tap_y = box["y"] + box["height"] // 2
             driver.tap([(tap_x, tap_y)])
             print(f"✓ Тап по 'Аудиозвонок' @ ({tap_x},{tap_y})")
-            time.sleep(1)
+            time.sleep(2)  # даём время зафиксировать выбор перед Continue
         except Exception as e:
             print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
         
