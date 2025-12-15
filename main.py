@@ -280,19 +280,56 @@ def register_whatsapp(adb: ADBController, phone_number: str):
     else:
         print("⚠️ Кнопка 'Verify another way' не найдена (возможно, сразу перешло к коду)")
 
-    # 8. Ждем звонка
-    print("\n📞 Ожидание звонка и ввод кода...")
-    # Тут вызываем API ожидания звонка
-    call_result = wait_for_voice_call_code(phone_number)
+    # 8. Ждем звонка ИЛИ кода на экране
+    print("\n📞 Ожидание звонка (API) или кода на экране...")
     
-    if call_result and call_result.get('status') == 'success':
-        code = str(call_result.get('code'))
-        print(f"✅ Код получен: {code}")
+    # Флаг завершения
+    found_event = threading.Event()
+    found_code_container = {}
+
+    # Поток для API звонка
+    def wait_api_call():
+        res = wait_for_voice_call_code(phone_number)
+        if res and res.get('status') == 'success' and not found_event.is_set():
+            found_code_container['code'] = str(res.get('code'))
+            found_code_container['source'] = 'API_CALL'
+            found_event.set()
+
+    # Поток для сканирования экрана (SMS/Push)
+    def scan_screen_for_code():
+        start_time = time.time()
+        while time.time() - start_time < 120 and not found_event.is_set():
+            xml = adb.get_ui_dump()
+            if xml:
+                # Ищем 6 цифр в тексте типа "код подтверждения: 123-456" или "verification code"
+                # Упрощенно: ищем блок из 3 цифр-3 цифр или 6 цифр подряд
+                # WhatsApp обычно пишет "Code: 123-456"
+                match = re.search(r'(?:code|код).*?(\d{3}[\s-]?\d{3})', xml, re.IGNORECASE)
+                if match:
+                    code_raw = match.group(1).replace("-", "").replace(" ", "")
+                    if len(code_raw) == 6:
+                        found_code_container['code'] = code_raw
+                        found_code_container['source'] = 'SCREEN_SMS'
+                        found_event.set()
+                        break
+            time.sleep(2)
+
+    t1 = threading.Thread(target=wait_api_call)
+    t2 = threading.Thread(target=scan_screen_for_code)
+    
+    t1.start()
+    t2.start()
+    
+    # Ждем завершения любого из потоков (или таймаута)
+    # Макс 130 сек
+    found_event.wait(timeout=130)
+    
+    if found_code_container.get('code'):
+        code = found_code_container['code']
+        source = found_code_container['source']
+        print(f"✅ Код получен ({source}): {code}")
         
         # Ввод кода
-        # Обычно фокус уже стоит, но лучше найти поле
-        # Поле ввода кода часто разбито на 6 полей или одно скрытое
-        # Пробуем просто ввести текст
         adb.text(code)
         print("⌨️ Код введен")
         
@@ -444,7 +481,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79809781439"
+    phone_number = "79587395377"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
