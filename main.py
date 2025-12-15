@@ -387,396 +387,110 @@ def wait_for_voice_call_code(phone_number: str, timeout: int = 120):
 
 
 def click_next_button(driver, device_name: str, phone_number: str):
-    """Кликнуть по кнопке 'Далее' используя Accessibility Service"""
+    """Кликнуть по кнопке 'Далее' используя Appium"""
     try:
-        print("⏳ Нажимаю Next через Accessibility Service...")
+        print("⏳ Нажимаю Next через Appium...")
         
-        # ВАЖНО! Закрываем Appium драйвер чтобы не мешал Accessibility Service
-        print("   Закрываю Appium драйвер...")
-        driver.quit()
-        
-        # Ждем чтобы Accessibility Service получил доступ к UI
-        print("   Жду восстановления Accessibility Service...")
-        time.sleep(5)
-        
-        # Попытка 1: По тексту
-        print("   Клик по тексту 'Next'...")
-        subprocess.run([
-            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-            "-a", "com.wa.clicker.CLICK",
-            "--es", "find_by", "text",
-            "--es", "value", "Next",
-            "-n", "com.wa.clicker/.CommandReceiver"
-        ], capture_output=True)
-        # time.sleep(3)
-        
-        # # Попытка 2: По ID
-        # print("   Попытка 2: Клик по ID...")
-        # subprocess.run([
-        #     ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-        #     "-a", "com.wa.clicker.CLICK",
-        #     "--es", "find_by", "id",
-        #     "--es", "value", "com.whatsapp:id/registration_submit",
-        #     "-n", "com.wa.clicker/.CommandReceiver"
-        # ], capture_output=True)
-        # time.sleep(3)
-        
-        # # Попытка 3: По координатам
-        # print("   Попытка 3: Клик по координатам...")
-        # subprocess.run([
-        #     ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-        #     "-a", "com.wa.clicker.CLICK",
-        #     "--es", "find_by", "coordinates",
-        #     "--es", "value", "540,2148",
-        #     "-n", "com.wa.clicker/.CommandReceiver"
-        # ], capture_output=True)
-        # time.sleep(3)
-        
-        print("✓ Команды отправлены в Accessibility Service")
-        
-        # Даем время для загрузки экрана "Connecting..."
-        print("\n⏳ Жду загрузки экрана (2 сек)...")
-        time.sleep(2)
-        
-        # Ждем окончания "Connecting..." и появления диалога с Yes
-        print("⏳ Жду окончания 'Connecting...' и появления диалога (опрос каждые 0.5 сек)...")
-        max_wait = 20  # Максимум 20 секунд
-        start_time = time.time()
-        
-        while time.time() - start_time < max_wait:
-            # Используем exec-out для прямого вывода XML, с fallback на file-based метод
-            try:
-                dump_result = subprocess.run(
-                    [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-            except subprocess.TimeoutExpired:
-                print("  ⚠️ exec-out timeout, пробую через файл...")
-                # Fallback: dump в файл и читаем
-                try:
-                    subprocess.run(
-                        [ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"],
-                        capture_output=True,
-                        timeout=10
-                    )
-                    dump_result = subprocess.run(
-                        [ADB_PATH, "-s", device_name, "shell", "cat", "/sdcard/window_dump.xml"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                except subprocess.TimeoutExpired:
-                    print("  ⚠️ И файловый метод timeout, пропускаю итерацию...")
-                    time.sleep(1)
-                    continue
-            
-            if dump_result.returncode == 0:
-                # Если видим "Connecting" - показываем статус и продолжаем ждать
-                if 'text="Connecting"' in dump_result.stdout:
-                    print("  ⏳ Экран 'Connecting...' активен...")
-                    time.sleep(0.5)
-                    continue
-                
-                # Если "Connecting" нет и появился диалог с Yes - выходим
-                # Ищем по resource-id как в дампе: android:id/button1
-                if 'resource-id="android:id/button1"' in dump_result.stdout and 'text="Yes"' in dump_result.stdout:
-                    print(f"✓ Connecting завершён, диалог появился (прождали {time.time() - start_time:.1f}с)")
-                    break
-            
-            time.sleep(0.5)
-        
-        # Кликаем "Yes" для подтверждения номера
-        print("⏳ Кликаю Yes для подтверждения номера...")
-        subprocess.run([
-            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-            "-a", "com.wa.clicker.CLICK",
-            "--es", "find_by", "text",
-            "--es", "value", "Yes",
-            "-n", "com.wa.clicker/.CommandReceiver"
-        ], capture_output=True)
-        
-        print("✓ Нажата кнопка Yes")
-        
-        # Ждем экран с разрешениями (15 секунд)
-        print("\n⏳ Жду экран с разрешениями (4 сек)...")
-        time.sleep(4)
-        
-        # Кликаем "Verify another way" по resource-id
-        print("⏳ Кликаю 'Verify another way'...")
-        subprocess.run([
-            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-            "-a", "com.wa.clicker.CLICK",
-            "--es", "find_by", "id",
-            "--es", "value", "com.whatsapp:id/secondary_button",
-            "-n", "com.wa.clicker/.CommandReceiver"
-        ], capture_output=True)
-        
-        print("✓ Нажата кнопка 'Verify another way'")
+        # Ждём загрузки экрана
+        print("   Жду загрузки экрана (3 сек)...")
         time.sleep(3)
         
-        # Выбираем "Voice call" через ADB tap
-        # Voice call LinearLayout: bounds="[44,1827][1036,1950]", центр: (540, 1889)
-        print("\n⏳ Выбираю Voice call...")
-        subprocess.run([
-            ADB_PATH, "-s", device_name, "shell", "input", "tap", "540", "1889"
-        ], capture_output=True)
+        # Попытка 1: Ищем кнопку "Next" по тексту
+        print("   Ищу кнопку 'Next'...")
+        try:
+            next_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Next").clickable(true)')
+            next_btn.click()
+            print("✓ Нажата кнопка 'Next'")
+            time.sleep(2)
+        except:
+            print("   Кнопка 'Next' не найдена, попытка 2...")
+            # Попытка 2: По ID
+            try:
+                next_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/registration_submit").clickable(true)')
+                next_btn.click()
+                print("✓ Нажата кнопка по ID")
+                time.sleep(2)
+            except Exception as e:
+                print(f"   Кнопка не найдена: {e}")
+                print("   Пропускаю...")
         
-        print("✓ Voice call выбран")
+        # Ждём экрана с "Connecting" / Yes диалогом
+        print("\n⏳ Жду экрана 'Connecting...' (макс 20 сек)...")
         time.sleep(2)
         
-        # Нажимаем кнопку CONTINUE
-        print("\n⏳ Нажимаю CONTINUE...")
-        subprocess.run([
-            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-            "-a", "com.wa.clicker.CLICK",
-            "--es", "find_by", "id",
-            "--es", "value", "com.whatsapp:id/continue_button",
-            "-n", "com.wa.clicker/.CommandReceiver"
-        ], capture_output=True)
+        # Ищем и кликаем "Yes" для подтверждения номера
+        print("⏳ Ищу кнопку 'Yes'...")
+        try:
+            yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Yes").clickable(true)')
+            yes_btn.click()
+            print("✓ Нажата кнопка 'Yes'")
+            time.sleep(3)
+        except:
+            print("⚠️  Кнопка 'Yes' не найдена")
         
-        print("✓ CONTINUE нажат")
+        # Ждём экрана с кнопкой "Verify another way"
+        print("\n⏳ Жду экрана с разрешениями (макс 10 сек)...")
+        time.sleep(2)
         
-        # СРАЗУ запускаем ожидание звонка в отдельном потоке (чтобы не пропустить)
-        call_result_container = {}
+        # Ищем и кликаем "Verify another way"
+        print("⏳ Ищу кнопку 'Verify another way'...")
+        try:
+            verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Verify another way").clickable(true)')
+            verify_btn.click()
+            print("✓ Нажата кнопка 'Verify another way'")
+            time.sleep(3)
+        except:
+            print("⚠️  Кнопка 'Verify another way' не найдена")
         
-        def wait_for_call():
-            call_result_container['result'] = wait_for_voice_call_code(phone_number, timeout=120)
+        # Выбираем "Voice call"
+        print("\n⏳ Ищу 'Voice call'...")
+        try:
+            voice_call = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Voice call").clickable(true)')
+            voice_call.click()
+            print("✓ Выбран 'Voice call'")
+            time.sleep(2)
+        except:
+            print("⚠️  'Voice call' не найден")
         
-        call_thread = threading.Thread(target=wait_for_call)
-        call_thread.start()
-        print("✓ Запущено ожидание звонка в фоне")
+        # Нажимаем CONTINUE
+        print("\n⏳ Ищу кнопку 'CONTINUE'...")
+        try:
+            continue_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("CONTINUE").clickable(true)')
+            continue_btn.click()
+            print("✓ Нажата кнопка 'CONTINUE'")
+            time.sleep(3)
+        except:
+            print("⚠️  Кнопка 'CONTINUE' не найдена")
         
-        # Ждем пока пройдет загрузчик "Requesting a call..."
-        print("\n⏳ Жду окончания загрузчика 'Requesting a call...' (опрос каждые 0.5 сек, макс 15 сек)...")
-        time.sleep(1)  # Даем загрузчику появиться
-        max_wait = 15
-        start_time = time.time()
-        
-        while time.time() - start_time < max_wait:
-            dump_result = subprocess.run(
-                [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if dump_result.returncode == 0:
-                # Проверяем на ошибку "Login not available"
-                if 'text="Login not available right now"' in dump_result.stdout:
-                    print("\n❌ ОШИБКА: WhatsApp заблокировал вход!")
-                    print("❌ 'Login not available right now'")
-                    print("❌ For security reasons, we can't log you in right now.")
-                    raise Exception("WhatsApp blocked login - 'Login not available right now'")
-                
-                # Если видим загрузчик - продолжаем ждать
-                if 'Requesting a call' in dump_result.stdout:
-                    print("  ⏳ Загрузчик 'Requesting a call...' активен...")
-                    time.sleep(0.5)
-                    continue
-                
-                # Если загрузчик прошел и появился экран ввода кода - выходим
-                if 'Verifying your number' in dump_result.stdout or 'Enter the 6-digit code' in dump_result.stdout:
-                    print(f"✓ Загрузчик завершён (прождали {time.time() - start_time:.1f}с)")
-                    break
-            
-            time.sleep(0.5)
-        
-        # Ждём результата от потока с ожиданием звонка
-        print("\n⏳ Ожидаю результат от wait-call API...")
-        call_thread.join()
-        call_result = call_result_container.get('result')
+        # Ждём код верификации
+        print("\n⏳ Ожидаю звонок и код верификации...")
+        call_result = wait_for_voice_call_code(phone_number, timeout=120)
         
         if call_result and call_result.get('status') == 'success':
             code = call_result.get('code')
             print(f"\n✅ Звонок получен! Код: {code}")
             
-            # Вводим код через Accessibility Service
-            print(f"\n⌨️  Ввожу код {code} через Accessibility Service...")
-            time.sleep(2)  # Ждём загрузки экрана ввода кода
+            # Вводим код через Appium
+            print(f"\n⌨️  Ввожу код {code}...")
+            time.sleep(2)
             
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-                "-a", "com.wa.clicker.TYPE_TEXT",
-                "--es", "find_by", "id",
-                "--es", "value", "com.whatsapp:id/verify_sms_code_input",
-                "--es", "text", code,
-                "-n", "com.wa.clicker/.CommandReceiver"
-            ], capture_output=True)
+            try:
+                code_input = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/verify_sms_code_input")')
+                code_input.send_keys(code)
+                print(f"✅ Код {code} введён")
+                time.sleep(3)
+            except:
+                print("⚠️  Поле ввода кода не найдено")
             
-            print(f"✅ Код {code} введён")
-            
-            # Даем время на загрузку экрана "Verifying..."
-            print("\n⏳ Жду загрузки экрана Verifying (1 сек)...")
-            time.sleep(1)
-            
-            # Ждём пока появится следующий экран (опрос каждые 0.5 сек)
-            print("⏳ Жду появления следующего экрана после Verifying (опрос каждые 0.5 сек, макс 30 сек)...")
-            max_wait = 30
-            start_time = time.time()
-            
-            while time.time() - start_time < max_wait:
-                # Используем exec-out для прямого вывода XML
-                dump_result = subprocess.run(
-                    [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                
-                if dump_result.returncode == 0:
-                    # Если появился следующий экран (NOT NOW или разрешения) - выходим
-                    if 'text="NOT NOW"' in dump_result.stdout or 'text="Allow WhatsApp"' in dump_result.stdout:
-                        print(f"✓ Verifying завершён, следующий экран появился (прождали {time.time() - start_time:.1f}с)")
-                        break
-                    
-                    # Если видим "Verifying" - показываем статус
-                    if 'text="Verifying"' in dump_result.stdout or 'Verifying' in dump_result.stdout:
-                        print("  ⏳ Экран 'Verifying...' активен...")
-                
-                time.sleep(0.5)
-            
-            # Дополнительная задержка после завершения верификации
-            print("⏳ Дополнительная задержка (3 сек)...")
-            time.sleep(5)
-            
-            # Диалог 1: Нажимаем "NOT NOW" на диалоге разрешений (Contacts)
-            print("\n⏳ Закрываю диалог разрешений (NOT NOW)...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "input", "tap", "502", "1490"
-            ], capture_output=True)
-            time.sleep(7)
-            
-            # Диалог 2: Нажимаем "CANCEL" на диалоге восстановления резервной копии
-            print("⏳ Закрываю диалог восстановления резервной копии (CANCEL)...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "input", "tap", "504", "1465"
-            ], capture_output=True)
-            time.sleep(7)
-            
-            # Ввод имени профиля
-            print("\n⏳ Ввожу имя профиля...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "input", "tap", "518", "1054"
-            ], capture_output=True)
-            time.sleep(3)
-            
-            subprocess.run(
-                f'adb -s {device_name} shell input text "John Smith"',
-                shell=True,
-                capture_output=True
-            )
-            
-            print("✅ Имя введено")
-            time.sleep(7)
-            
-            # Нажимаем Next на экране Profile info
-            print("\n⏳ Нажимаю Next на экране Profile info...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-                "-a", "com.wa.clicker.CLICK",
-                "--es", "find_by", "text",
-                "--es", "value", "Next",
-                "-n", "com.wa.clicker/.CommandReceiver"
-            ], capture_output=True)
-            
-            print("✓ Next нажат")
-            time.sleep(7)
-            
-            # Нажимаем Skip на экране Add your email
-            print("\n⏳ Нажимаю Skip на экране Add your email...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
-                "-a", "com.wa.clicker.CLICK",
-                "--es", "find_by", "text",
-                "--es", "value", "Skip",
-                "-n", "com.wa.clicker/.CommandReceiver"
-            ], capture_output=True)
-            
-            print("✓ Skip нажат")
-            
-            # Ждём готовности пользователя
-            input("\n⏸  Нажми Enter когда будешь готов искать код (после манипуляций в ТГ)...")
-            
-            # Ждём появления чата с кодом верификации на главном экране
-            print("\n⏳ Ищу сообщение с кодом (опрос каждую секунду, макс 60 сек)...")
-            max_wait = 60
-            start_time = time.time()
-            found_code = None
-            
-            while time.time() - start_time < max_wait:
-                # Дампим в файл и читаем (так надежнее чем exec-out)
-                try:
-                    subprocess.run(
-                        [ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/check.xml"],
-                        capture_output=True,
-                        timeout=10
-                    )
-                    
-                    dump_result = subprocess.run(
-                        [ADB_PATH, "-s", device_name, "shell", "cat", "/sdcard/check.xml"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                except subprocess.TimeoutExpired:
-                    print("  ⚠️ uiautomator timeout, пропускаю итерацию...")
-                    time.sleep(1)
-                    continue
-                
-                if dump_result.returncode == 0:
-                    # Ищем текст с кодом подтверждения (в русском или английском)
-                    if 'код подтверждения' in dump_result.stdout or 'verification code' in dump_result.stdout:
-                        # Извлекаем код (5 или 6 цифр)
-                        code_match = re.search(r'(\d{5,6})', dump_result.stdout)
-                        if code_match:
-                            found_code = code_match.group(1)
-                            print(f"\n🎉 КОД НАЙДЕН: {found_code}")
-                            print(f"✓ Прождали {time.time() - start_time:.1f}с")
-                            break
-                        else:
-                            print("  ⏳ Нашел сообщение, но нет цифр")
-                    else:
-                        elapsed = time.time() - start_time
-                        print(f"  ⏳ Прождали {elapsed:.1f}с, сообщение еще не пришло...")
-                
-                time.sleep(1)
-            else:
-                print(f"\n❌ Код не появился за {max_wait} сек")
-            
-            if found_code:
-                print(f"\n✅ Финальный код верификации: {found_code}")
-            
-            print("\n🎉 Регистрация WhatsApp завершена!")
-            
-            # Удаляем WhatsApp для чистого следующего запуска
-            print("\n⏳ Удаляю WhatsApp...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
-            ], capture_output=True)
-            print("✓ WhatsApp удален")
-            
+            print("\n🎉 Регистрация завершена!")
         else:
             print("\n⚠️ Не удалось получить звонок")
-            
-            # Удаляем WhatsApp даже при ошибке
-            print("\n⏳ Удаляю WhatsApp...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
-            ], capture_output=True)
-            print("✓ WhatsApp удален")
         
         return True
         
     except Exception as e:
         error_msg = str(e)
         print(f"✗ Ошибка в click_next_button: {error_msg}")
-        
-        # Если это ошибка блокировки - перебрасываем её для обработки в main()
-        if "WhatsApp blocked login" in error_msg:
-            raise
-        
         return False
 
 
