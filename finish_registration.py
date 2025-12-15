@@ -108,25 +108,7 @@ def finish_reg(driver):
     except Exception as e:
         print(f"⚠️ Ошибка нажатия Next: {e}")
         
-    # 3. Иногда бывает экран "Create a passkey" -> Skip
-    print("⏳ Проверяю экран Passkey (Skip)...")
-    try:
-        skip_btn = None
-        skip_sels = [
-             'new UiSelector().text("Skip")',
-             'new UiSelector().text("Пропустить")',
-             'new UiSelector().resourceId("com.whatsapp:id/negative_button")', # Часто это Skip
-        ]
-        for sel in skip_sels:
-             try:
-                els = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                if els:
-                    els[0].click()
-                    print(f"✓ Нажат Skip (Passkey) по селектору: {sel}")
-                    time.sleep(2)
-                    break
-             except: pass
-    except: pass
+    # 3. Иногда бывает экран "Create a passkey" -> Ski
     
     # 4. Иногда бывает "Initializing..." долго
     print("🏁 Скрипт завершен")
