@@ -79,6 +79,34 @@ def main():
     else:
         print(f"⚠️  Файл {apk_wa} не найден, пропуск установки WhatsApp")
 
+    # 9. Настраиваем ProxyDroid (Config + Start)
+    print("🌍 Настраиваю конфиг ProxyDroid...")
+    ADB_PATH = r"C:\Program Files\Microvirt\MEmu\adb.exe" # Или из env
+    local_conf = "proxydroid_prefs.xml"
+    remote_conf = "/data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml"
+    
+    # Ждем загрузки
+    print("⏳ Жду загрузки Android (10 сек)...")
+    time.sleep(10)
+
+    if os.path.exists(local_conf):
+        try:
+            # Force stop
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "am", "force-stop", "org.proxydroid"], capture_output=True)
+            # Push config
+            subprocess.run([ADB_PATH, "-s", device_name, "push", local_conf, remote_conf], check=True)
+            # Permissions
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", remote_conf], check=True)
+            print("✓ Конфиг ProxyDroid загружен")
+            
+            # Start app to apply (или можно через broadcast если поддерживается)
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "monkey", "-p", "org.proxydroid", "1"], capture_output=True)
+            print("✓ ProxyDroid запущен")
+        except Exception as e:
+             print(f"⚠️ Ошибка настройки ProxyDroid: {e}")
+    else:
+        print(f"⚠️ Файл {local_conf} не найден, пропускаю настройку")
+
     print("\n" + "="*40)
     print(f"✅ Готово! Новый девайс запущен.")
     print("="*40)

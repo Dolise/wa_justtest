@@ -175,6 +175,8 @@ def install_accessibility_service(device_name: str):
 
 
 
+
+
 def install_whatsapp(device_name: str):
     """Установить WhatsApp APK на эмулятор"""
     apk_path = "whatsapp.apk"  # Путь к APK файлу
