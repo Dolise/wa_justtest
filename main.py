@@ -141,7 +141,11 @@ def setup_proxydroid(adb: ADBController):
         subprocess.run([ADB_PATH, "-s", adb.device_name, "push", local_conf, "/data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml"], capture_output=True)
         adb.run_shell("chmod 777 /data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml")
     
-    # 2. Запускаем сервис
+    # 2. Запускаем приложение (GUI), чтобы точно триггернуть запрос прав
+    adb.run_shell("am start -n org.proxydroid/.MainActivity")
+    time.sleep(3)
+
+    # 2.1 Запускаем сервис (на всякий случай)
     adb.run_shell("am startservice -n org.proxydroid/.ProxyDroidService")
     adb.run_shell("am broadcast -a org.proxydroid.intent.action.START")
     time.sleep(2)
@@ -250,7 +254,8 @@ def register_whatsapp(adb: ADBController, phone_number: str):
     adb.click_element(text="Не сейчас", timeout=0.5)
 
     if adb.click_element(text="Verify another way", timeout=10) or \
-       adb.click_element(text="другим способом", timeout=1):
+       adb.click_element(text="другим способом", timeout=1) or \
+       adb.click_element(text="Подтвердить другим способом", timeout=1):
         print("✓ Выбрал другой способ")
         time.sleep(1)
         
@@ -259,7 +264,14 @@ def register_whatsapp(adb: ADBController, phone_number: str):
         if adb.click_element(text="Call me", timeout=5) or \
            adb.click_element(text="Позвонить", timeout=1) or \
            adb.click_element(text="Аудиозвонок", timeout=1):
-            print("✓ Запрошен звонок")
+            print("✓ Запрошен звонок (выбран пункт)")
+            time.sleep(1)
+            # Жмем "Продолжить" (если есть кнопка)
+            # Иногда это радиобаттон и нужна кнопка внизу
+            if adb.click_element(text="Continue", timeout=2) or \
+               adb.click_element(text="Продолжить", timeout=1) or \
+               adb.click_element(resource_id="com.whatsapp:id/continue_button", timeout=1):
+                print("✓ Нажата кнопка 'Продолжить'")
         else:
             print("⚠️ Кнопка звонка не найдена (возможно, таймер?)")
     else:
@@ -306,7 +318,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79809794798"
+    phone_number = "79847037081"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
