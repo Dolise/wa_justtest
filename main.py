@@ -257,36 +257,26 @@ def click_agree_button(driver):
         agree_btn = None
 
         for attempt in range(max_attempts):
-            try:
-                # Русский вариант
-                agree_btn = driver.find_element(
-                    AppiumBy.ANDROID_UIAUTOMATOR,
-                    'new UiSelector().text("Принять и продолжить").clickable(true)',
-                )
-                print(f"✓ Найдена русская версия кнопки на попытке {attempt + 1}")
-                break
-            except Exception:
+            selectors = [
+                'new UiSelector().text("Принять и продолжить").clickable(true)',
+                'new UiSelector().text("AGREE AND CONTINUE").clickable(true)',
+                'new UiSelector().textContains("риня").clickable(true)',
+                'new UiSelector().textContains("AGREE").clickable(true)',
+                # Часто у кнопки бывает ресурс id
+                'new UiSelector().resourceId("com.whatsapp:id/eula_accept").clickable(true)',
+            ]
+            for sel in selectors:
                 try:
-                    # Английский вариант
-                    agree_btn = driver.find_element(
-                        AppiumBy.ANDROID_UIAUTOMATOR,
-                        'new UiSelector().text("AGREE AND CONTINUE").clickable(true)',
-                    )
-                    print(f"✓ Найдена английская версия кнопки на попытке {attempt + 1}")
+                    agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                    print(f"✓ Найдено по селектору: {sel}")
                     break
                 except Exception:
-                    try:
-                        # Частичное совпадение (на всякий случай)
-                        agree_btn = driver.find_element(
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().textContains("риня").clickable(true)',
-                        )
-                        print(f"✓ Найдена кнопка по частичному тексту на попытке {attempt + 1}")
-                        break
-                    except Exception:
-                        if attempt % 10 == 0 and attempt > 0:
-                            print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
-                        time.sleep(0.5)
+                    continue
+            if agree_btn:
+                break
+            if attempt % 10 == 0 and attempt > 0:
+                print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
+            time.sleep(0.5)
 
         if agree_btn:
             agree_btn.click()
@@ -299,8 +289,8 @@ def click_agree_button(driver):
                 with open("agree_screen.xml", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 print("✓ Page source сохранён в agree_screen.xml")
-            except:
-                pass
+            except Exception as save_err:
+                print(f"⚠️ Не удалось сохранить page source: {save_err}")
             
             # Фолбэк: кликаем внизу по центру (там обычно кнопка)
             print("⚠️  Жму по координатам снизу экрана")
@@ -498,8 +488,8 @@ def click_next_button(driver, device_name: str, phone_number: str):
         try:
             verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Verify another way").clickable(true)')
             verify_btn.click()
-        print("✓ Нажата кнопка 'Verify another way'")
-        time.sleep(3)
+            print("✓ Нажата кнопка 'Verify another way'")
+            time.sleep(3)
         except:
             print("⚠️  Кнопка 'Verify another way' не найдена")
         
@@ -509,7 +499,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             voice_call = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Voice call").clickable(true)')
             voice_call.click()
             print("✓ Выбран 'Voice call'")
-        time.sleep(2)
+            time.sleep(2)
         except:
             print("⚠️  'Voice call' не найден")
         
