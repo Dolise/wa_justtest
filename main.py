@@ -549,11 +549,7 @@ def main():
             # 1. Запустить эмулятор
             device_name = start_emulator(avd_name, port=port, show_gui=show_gui)
             
-            # 2. Установить Accessibility Service (СНАЧАЛА!)
-            if not install_accessibility_service(device_name):
-                print("⚠️  Accessibility Service не установлен, но продолжаю...")
-            
-            # 3. Удалить старый WhatsApp и переустановить
+            # 2. Удалить старый WhatsApp и переустановить
             print("\n🔄 Удаляю старый WhatsApp...")
             subprocess.run([
                 ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
@@ -565,23 +561,22 @@ def main():
             install_whatsapp(device_name)
             print("✓ WhatsApp установлен")
             
-            # 4. Открыть WhatsApp
+            # 3. Открыть WhatsApp
             open_whatsapp(device_name)
             
-            # 5. Подключиться через Appium
+            # 4. Подключиться через Appium
             driver = connect_appium(device_name)
             
-            # 6. Кликнуть "Согласиться"
+            # 5. Кликнуть "Согласиться"
             click_agree_button(driver)
             
-            # 7. Ввести номер телефона
+            # 6. Ввести номер телефона
             enter_phone_number(driver, phone_number)
             
-            # 8. Настроить перенаправление звонков на SIP
+            # 7. Настроить перенаправление звонков на SIP
             redirect_calls_to_sip(phone_number)
             
-            # 9. Нажать "Далее" через Accessibility Service
-            # (driver.quit() вызывается внутри click_next_button)
+            # 8. Нажать "Далее" и пройти регистрацию через Appium
             click_next_button(driver, device_name, phone_number)
             
             # Если добрались сюда - успех!
