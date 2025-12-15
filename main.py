@@ -470,33 +470,45 @@ def click_next_button(driver, device_name: str, phone_number: str):
                 print(f"   Кнопка не найдена: {e}")
                 print("   Пропускаю...")
         
-        # Ждём экрана с "Connecting" / Yes диалогом
-        print("\n⏳ Жду экрана 'Connecting...' (макс 20 сек)...")
-        time.sleep(2)
-        
-        # Ищем и кликаем "Yes"/"Да" для подтверждения номера
-        print("⏳ Ищу кнопку 'Yes'/'Да'...")
-        yes_btn = None
-        yes_selectors = [
-            'new UiSelector().text("Yes").clickable(true)',
-            'new UiSelector().text("Да").clickable(true)',
-            'new UiSelector().textContains("Yes").clickable(true)',
-            'new UiSelector().textContains("Да").clickable(true)',
-            'new UiSelector().resourceId("android:id/button1").clickable(true)',
-        ]
-        for sel in yes_selectors:
-            try:
-                yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                print(f"✓ Найдена кнопка по селектору: {sel}")
+        # Ждём экрана с "Connecting" и появления диалога Yes/Да (polling до 20 сек)
+        print("\n⏳ Жду 'Connecting...' и диалог подтверждения (до 20 сек)...")
+        yes_clicked = False
+        for i in range(40):  # 40 * 0.5s = 20s
+            source = driver.page_source
+            if "Connecting" in source:
+                if i % 6 == 0 and i > 0:
+                    print("  ⏳ Всё ещё 'Connecting...'")
+            # Пытаемся найти и кликнуть Yes/Да
+            yes_btn = None
+            yes_selectors = [
+                'new UiSelector().text("Yes").clickable(true)',
+                'new UiSelector().text("Да").clickable(true)',
+                'new UiSelector().textContains("Yes").clickable(true)',
+                'new UiSelector().textContains("Да").clickable(true)',
+                'new UiSelector().resourceId("android:id/button1").clickable(true)',
+            ]
+            for sel in yes_selectors:
+                try:
+                    yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                    print(f"✓ Найдена кнопка по селектору: {sel}")
+                    break
+                except Exception:
+                    continue
+            if yes_btn:
+                yes_btn.click()
+                yes_clicked = True
+                print("✓ Нажата кнопка подтверждения")
+                time.sleep(3)
                 break
+            time.sleep(0.5)
+        if not yes_clicked:
+            print("⚠️  Кнопка 'Yes'/'Да' не найдена за 20 сек")
+            try:
+                with open("yes_wait_screen.xml", "w", encoding="utf-8") as f:
+                    f.write(source)
+                print("✓ Сохранил yes_wait_screen.xml для анализа")
             except Exception:
-                continue
-        if yes_btn:
-            yes_btn.click()
-            print("✓ Нажата кнопка подтверждения")
-            time.sleep(3)
-        else:
-            print("⚠️  Кнопка 'Yes'/'Да' не найдена")
+                pass
         
         # Ждём экрана с кнопкой "Verify another way"
         print("\n⏳ Жду экрана с разрешениями (макс 10 сек)...")
