@@ -34,10 +34,10 @@ def main():
     index = int(match.group(1))
     print(f"✓ Инстанс создан. Индекс: {index}")
 
-    # 2. Настраиваем производительность (1 CPU, 1024 RAM)
+    # 2. Настраиваем производительность (2 CPU, 1536 RAM)
     print("⚙️  Настраиваю CPU/RAM...")
-    run_memuc(["setconfigex", "-i", str(index), "cpus", "1"])
-    run_memuc(["setconfigex", "-i", str(index), "memory", "1024"])
+    run_memuc(["setconfigex", "-i", str(index), "cpus", "2"])
+    run_memuc(["setconfigex", "-i", str(index), "memory", "1536"])
 
     # 3. Настраиваем разрешение (720x1280, 240dpi, Mobile)
     print("⚙️  Настраиваю экран...")
