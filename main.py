@@ -264,9 +264,9 @@ def register_whatsapp(adb: ADBController, phone_number: str):
         
         # 7. Выбираем Call Me
         print("⏳ Выбираем 'Call Me'...")
-        if adb.click_element(text="Call me", timeout=5) or \
+        if adb.click_element(text="Аудиозвонок", timeout=5) or \
            adb.click_element(text="Позвонить", timeout=1) or \
-           adb.click_element(text="Аудиозвонок", timeout=1):
+           adb.click_element(text="Call me", timeout=1):
             print("✓ Запрошен звонок (выбран пункт)")
             time.sleep(1)
             # Жмем "Продолжить" (если есть кнопка)
@@ -319,14 +319,50 @@ def register_whatsapp(adb: ADBController, phone_number: str):
                adb.click_element(text="Далее", timeout=1) or \
                adb.click_element(resource_id="com.whatsapp:id/register_name_accept", timeout=1):
                 print("✓ Нажато 'Далее'")
-                time.sleep(5)
-                return True
+                
+                # 10. Финальное ожидание (Passkey / Email / Init)
+                print("\n⏳ Ожидание завершения настройки (Passkey/Email/Init)...")
+                
+                # Поллим успешный вход (появление вкладок Чаты/Calls)
+                # попутно нажимая "Пропустить"/"Не сейчас"
+                success_reg = False
+                for _ in range(60): # 60 попыток по 1-1.5 сек ~ 90 сек макс
+                    # 1. Проверка успеха
+                    # Ищем текст "Чаты" или "Chats" или "Звонки" или "Calls"
+                    # (Также можно искать кнопку "Начать чат" или "Отправить сообщение")
+                    if adb.find_element(text="Чаты") or \
+                       adb.find_element(text="Chats") or \
+                       adb.find_element(text="Звонки") or \
+                       adb.find_element(text="Calls"):
+                        print("\n🎉 УРА! Главный экран WhatsApp найден. Регистрация успешна!")
+                        success_reg = True
+                        break
+                    
+                    # 2. Проверка помех (Passkey / Email / Backup)
+                    if adb.click_element(text="Пропустить", timeout=0.5) or \
+                       adb.click_element(text="Skip", timeout=0.5) or \
+                       adb.click_element(text="Не сейчас", timeout=0.5) or \
+                       adb.click_element(text="Not now", timeout=0.5) or \
+                       adb.click_element(text="Отмена", timeout=0.5) or \
+                       adb.click_element(text="Cancel", timeout=0.5):
+                         print("✓ Нажата кнопка пропуска")
+                         time.sleep(1)
+                         continue
+                         
+                    time.sleep(1)
+                
+                if success_reg:
+                    return True
+                else:
+                    print("⚠️ Не удалось детектировать главный экран за 90 сек")
+                    return False
+
             else:
                 print("⚠️ Кнопка 'Далее' не найдена")
         else:
             print("⚠️ Экран ввода имени не появился за 40 сек")
 
-        return True
+        return True # Возвращаем True, если дошли до конца ввода имени (дальше уже поллинг)
     else:
         print("❌ Звонок не прошел")
         return False
@@ -408,7 +444,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79808257561"
+    phone_number = "79809781439"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
