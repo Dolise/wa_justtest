@@ -249,16 +249,19 @@ def connect_appium(device_name: str, appium_port: int = 4723):
 def click_agree_button(driver):
     """Кликнуть по кнопке 'Согласиться и продолжить'"""
     try:
-        # Нажать OK на диалоге про ROM (координаты из page_source: [472,1260][648,1392])
-        print("⏳ Нажимаем OK на диалоге про ROM...")
-        driver.tap([(560, 1326)])  # Центр кнопки OK
-        time.sleep(2)
+        # Ищем кнопку "AGREE AND CONTINUE" или "Принять и продолжить"
+        print("⏳ Ищем кнопку согласия...")
+        try:
+            # Пытаемся русский вариант
+            agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Принять и продолжить").clickable(true)')
+            print("✓ Найдена русская версия кнопки")
+        except:
+            # Fallback на английский
+            agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("AGREE AND CONTINUE").clickable(true)')
+            print("✓ Найдена английская версия кнопки")
         
-        # Теперь должна быть кнопка "AGREE AND CONTINUE"
-        print("⏳ Ищем кнопку AGREE AND CONTINUE...")
-        agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("AGREE AND CONTINUE").clickable(true)')
         agree_btn.click()
-        print("✓ Нажата кнопка 'AGREE AND CONTINUE'")
+        print("✓ Нажата кнопка согласия")
         time.sleep(2)
     except Exception as e:
         print(f"✗ Ошибка: {e}")
