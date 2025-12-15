@@ -21,7 +21,7 @@ if not os.path.exists(ADB_PATH):
     ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
 
 # MEMU device ID (замени на свой если другой инстанс)
-MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21503")
+MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21513")
 USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
 
 
