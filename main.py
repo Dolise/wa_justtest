@@ -247,40 +247,69 @@ def connect_appium(device_name: str, appium_port: int = 4723):
 
 
 def click_agree_button(driver):
-    """Кликнуть по кнопке 'Согласиться и продолжить'"""
+    """Кликнуть по кнопке 'Согласиться и продолжить' (или AGREE AND CONTINUE)"""
     try:
-        # Даём время на загрузку
         print("⏳ Жду загрузки экрана (2 сек)...")
         time.sleep(2)
-        
-        # Ищем кнопку "AGREE AND CONTINUE" или "Принять и продолжить"
+
         print("⏳ Ищем кнопку согласия (polling до 15 сек)...")
         max_attempts = 30  # 30 попыток по 0.5 сек = 15 секунд
         agree_btn = None
-        
+
         for attempt in range(max_attempts):
             try:
-                # Пытаемся русский вариант
-                agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Принять и продолжить").clickable(true)')
+                # Русский вариант
+                agree_btn = driver.find_element(
+                    AppiumBy.ANDROID_UIAUTOMATOR,
+                    'new UiSelector().text("Принять и продолжить").clickable(true)',
+                )
                 print(f"✓ Найдена русская версия кнопки на попытке {attempt + 1}")
                 break
-            except:
+            except Exception:
                 try:
-                    # Fallback на английский
-                    agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("AGREE AND CONTINUE").clickable(true)')
+                    # Английский вариант
+                    agree_btn = driver.find_element(
+                        AppiumBy.ANDROID_UIAUTOMATOR,
+                        'new UiSelector().text("AGREE AND CONTINUE").clickable(true)',
+                    )
                     print(f"✓ Найдена английская версия кнопки на попытке {attempt + 1}")
                     break
-                except:
-                    if attempt % 10 == 0 and attempt > 0:
-                        print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
-                    time.sleep(0.5)
-        
+                except Exception:
+                    try:
+                        # Частичное совпадение (на всякий случай)
+                        agree_btn = driver.find_element(
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().textContains("риня").clickable(true)',
+                        )
+                        print(f"✓ Найдена кнопка по частичному тексту на попытке {attempt + 1}")
+                        break
+                    except Exception:
+                        if attempt % 10 == 0 and attempt > 0:
+                            print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
+                        time.sleep(0.5)
+
         if agree_btn:
             agree_btn.click()
             print("✓ Нажата кнопка согласия")
             time.sleep(2)
         else:
-            print("⚠️  Кнопка согласия не найдена за 15 сек")
+            # Сохраняем page source для дебага
+            print("⚠️  Кнопка не найдена, сохраняю page source...")
+            try:
+                with open("agree_screen.xml", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                print("✓ Page source сохранён в agree_screen.xml")
+            except:
+                pass
+            
+            # Фолбэк: кликаем внизу по центру (там обычно кнопка)
+            print("⚠️  Жму по координатам снизу экрана")
+            size = driver.get_window_size()
+            x = size["width"] // 2
+            y = int(size["height"] * 0.9)
+            print(f"   Клик по ({x}, {y})")
+            driver.tap([(x, y)])
+            time.sleep(2)
     except Exception as e:
         print(f"✗ Ошибка: {e}")
 
@@ -288,6 +317,10 @@ def click_agree_button(driver):
 def enter_phone_number(driver, phone_number: str):
     """Ввести номер телефона"""
     try:
+        # Даём время на загрузку экрана
+        print("⏳ Жду загрузки экрана ввода номера (3 сек)...")
+        time.sleep(3)
+        
         # Найти оба поля ввода
         print("⏳ Ищем поля ввода номера...")
         edit_texts = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
@@ -313,6 +346,16 @@ def enter_phone_number(driver, phone_number: str):
             return True
         else:
             print(f"✗ Найдено только {len(edit_texts)} поле(й), ожидалось 2")
+            
+            # Сохраняем page source для дебага
+            print("⚠️  Сохраняю page source...")
+            try:
+                with open("phone_screen.xml", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                print("✓ Page source сохранён в phone_screen.xml")
+            except:
+                pass
+            
             return False
     except Exception as e:
         print(f"✗ Ошибка при вводе номера: {e}")
@@ -455,8 +498,8 @@ def click_next_button(driver, device_name: str, phone_number: str):
         try:
             verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Verify another way").clickable(true)')
             verify_btn.click()
-            print("✓ Нажата кнопка 'Verify another way'")
-            time.sleep(3)
+        print("✓ Нажата кнопка 'Verify another way'")
+        time.sleep(3)
         except:
             print("⚠️  Кнопка 'Verify another way' не найдена")
         
@@ -466,7 +509,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             voice_call = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Voice call").clickable(true)')
             voice_call.click()
             print("✓ Выбран 'Voice call'")
-            time.sleep(2)
+        time.sleep(2)
         except:
             print("⚠️  'Voice call' не найден")
         
@@ -495,8 +538,8 @@ def click_next_button(driver, device_name: str, phone_number: str):
             try:
                 code_input = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/verify_sms_code_input")')
                 code_input.send_keys(code)
-                print(f"✅ Код {code} введён")
-                time.sleep(3)
+            print(f"✅ Код {code} введён")
+            time.sleep(3)
             except:
                 print("⚠️  Поле ввода кода не найдено")
             
