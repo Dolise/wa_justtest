@@ -364,10 +364,24 @@ def connect_appium(device_name: str, appium_port: int = 4723):
     
     # Пробуем подключиться несколько раз
     max_retries = 3
+    import socket
+    
+    # Проверка доступности порта Appium
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', appium_port))
+        if result == 0:
+            print(f"✓ Порт {appium_port} доступен")
+        else:
+            print(f"⚠️ Порт {appium_port} закрыт! Запущен ли Appium Server?")
+        sock.close()
+    except: pass
+
     for retry in range(max_retries):
         try:
-            print(f"🔌 Подключаюсь к Appium (http://localhost:{appium_port})...")
-            driver = webdriver.Remote(f"http://localhost:{appium_port}", caps)
+            print(f"🔌 Подключаюсь к Appium (http://127.0.0.1:{appium_port})...")
+            # Используем 127.0.0.1 вместо localhost, чтобы избежать проблем с Proxifier/DNS
+            driver = webdriver.Remote(f"http://127.0.0.1:{appium_port}", caps)
             print(f"✓ Appium подключен к {device_name}")
             return driver
         except Exception as e:
