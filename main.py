@@ -195,6 +195,42 @@ def setup_proxydroid(driver, device_name):
         print("✓ Команды запуска отправлены")
         time.sleep(3)
         
+    # 3.1 Попытка выдать права через AppOps (работает на некоторых Android)
+        print("🔧 Пытаюсь выдать Root права через AppOps...")
+        subprocess.run([ADB_PATH, "-s", device_name, "shell", "appops", "set", "org.proxydroid", "SU", "allow"], capture_output=True)
+        # Иногда сервис называется COARSE_LOCATION и т.д., но для SU бывает свой опкод
+        
+        # 3.2 Умный поиск кнопки Grant через uiautomator dump (если Appium слеп)
+        # Это работает даже если Appium не видит системное окно
+        try:
+             print("🕵️ Ищу окно SuperUser через uiautomator...")
+             # Дамп
+             dump_path = "/data/local/tmp/dump.xml"
+             local_dump = "window_dump.xml"
+             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True)
+             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True)
+             
+             if os.path.exists(local_dump):
+                 with open(local_dump, "r", encoding="utf-8", errors="ignore") as f:
+                     content = f.read()
+                     # Ищем координаты кнопки Grant/Разрешить/Allow
+                     # Паттерн: text="Grant" ... bounds="[x1,y1][x2,y2]"
+                     import re
+                     # Ищем слова
+                     match = re.search(r'text="([^"]*(?:Grant|Allow|Разрешить)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', content, re.IGNORECASE)
+                     if match:
+                         text = match.group(1)
+                         x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
+                         center_x = (x1 + x2) // 2
+                         center_y = (y1 + y2) // 2
+                         print(f"✓ Найдена кнопка '{text}' в дампе! Жму ({center_x}, {center_y})")
+                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(center_x), str(center_y)], check=True)
+                         time.sleep(2)
+                     else:
+                         print("⚠️ Кнопка Grant не найдена в дампе uiautomator")
+        except Exception as e:
+             print(f"⚠️ Ошибка умного поиска: {e}")
+
         # 3. Проверка: Если вылезло окно Root прав - надо нажать Grant
         # (Это всё равно нужно, если приложение запускается первый раз)
         try:
