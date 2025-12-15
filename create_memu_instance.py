@@ -82,6 +82,66 @@ def main():
         print(f"⚠️  Файл {apk_wa} не найден, пропуск установки WhatsApp")
 
     # 9. Настраиваем ProxyDroid (Config + Start)
+    # ...
+    # 9.1 Сразу после создания пробуем включить ROOT принудительно через правку файла конфига
+    # (потому что memuc иногда не включает)
+    try:
+        # Пытаемся найти папку с VM конфигами
+        # Обычно: C:\Program Files\Microvirt\MEmu\MemuHyperv VMs\MEmu_{index}\MEmu_{index}.memu
+        # Но у нас index может быть любым.
+        # Проще найти папку VMs
+        vms_dir = r"C:\Program Files\Microvirt\MEmu\MemuHyperv VMs"
+        if not os.path.exists(vms_dir):
+             # Попробуем альтернативу
+             vms_dir = os.path.expanduser("~\\Documents\\MEmu Hyperv VMs")
+        
+        if os.path.exists(vms_dir):
+             # Ищем файл конфига для нашего индекса
+             # Папка может называться MEmu_{index} или просто лежать там
+             # Попробуем найти файл MEmu_{index}.memu
+             target_file = None
+             import glob
+             # Ищем рекурсивно
+             candidates = glob.glob(os.path.join(vms_dir, f"**", f"MEmu_{index}.memu"), recursive=True)
+             if not candidates:
+                 # Пробуем просто MEmu.memu если индекс 0? нет, индекс точно есть
+                 pass
+             
+             if candidates:
+                 target_file = candidates[0]
+                 print(f"🔧 Найден файл конфига: {target_file}")
+                 
+                 # Читаем и правим
+                 with open(target_file, 'r', encoding='utf-8', errors='ignore') as f:
+                     content = f.read()
+                 
+                 new_content = content
+                 if 'enable_root" value="0"' in content:
+                     new_content = new_content.replace('enable_root" value="0"', 'enable_root" value="1"')
+                     print("  ✓ Исправлено: enable_root -> 1")
+                 if 'root_mode" value="0"' in content:
+                     new_content = new_content.replace('root_mode" value="0"', 'root_mode" value="1"')
+                     print("  ✓ Исправлено: root_mode -> 1")
+                 if 'is_root_mode" value="0"' in content:
+                     new_content = new_content.replace('is_root_mode" value="0"', 'is_root_mode" value="1"')
+                     print("  ✓ Исправлено: is_root_mode -> 1")
+                     
+                 if new_content != content:
+                     with open(target_file, 'w', encoding='utf-8') as f:
+                         f.write(new_content)
+                     print("✅ Root включен принудительно в файле!")
+                     
+                     # Перезагружаем эмулятор чтобы применилось
+                     print("🔄 Перезапускаю эмулятор для применения Root...")
+                     run_memuc(["stop", "-i", str(index)])
+                     time.sleep(2)
+                     run_memuc(["start", "-i", str(index)])
+                     time.sleep(5)
+                 else:
+                     print("  (Root уже включен в файле)")
+    except Exception as e:
+        print(f"⚠️ Ошибка принудительного включения Root: {e}")
+
     print("🌍 Настраиваю конфиг ProxyDroid...")
     ADB_PATH = r"C:\Program Files\Microvirt\MEmu\adb.exe" # Или из env
     local_conf = "proxydroid_prefs.xml"
