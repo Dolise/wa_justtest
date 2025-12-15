@@ -538,14 +538,14 @@ def click_next_button(driver, device_name: str, phone_number: str):
         else:
             print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
         
-        # Выбираем "Voice call"
-        print("\n⏳ Ищу 'Voice call' / 'Аудиозвонок'...")
+        # Выбираем "Voice call" радиобаттон
+        print("\n⏳ Ищу 'Voice call' / 'Аудиозвонок' (radio)...")
         voice_btn = None
         voice_selectors = [
-            'new UiSelector().text("Voice call").clickable(true)',
-            'new UiSelector().text("Аудиозвонок").clickable(true)',
-            'new UiSelector().textContains("Voice").clickable(true)',
-            'new UiSelector().textContains("аудио").clickable(true)',
+            'new UiSelector().text("Voice call").className("android.widget.CheckedTextView")',
+            'new UiSelector().text("Аудиозвонок").className("android.widget.CheckedTextView")',
+            'new UiSelector().textContains("Voice").className("android.widget.CheckedTextView")',
+            'new UiSelector().textContains("удио").className("android.widget.CheckedTextView")',
         ]
         for sel in voice_selectors:
             try:
@@ -644,7 +644,7 @@ def print_page_dump(driver):
 
 
 def main():
-    phone_number = "79120985776"
+    phone_number = "79011299752"
     avd_name = "Pixel_4_API_26"
     port = 5554
     device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
