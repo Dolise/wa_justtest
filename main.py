@@ -215,10 +215,15 @@ def connect_appium(device_name: str, appium_port: int = 4723):
         "platformName": "Android",
         "automationName": "UiAutomator2",
         "deviceName": device_name,
+        "udid": device_name,
         "appPackage": "com.whatsapp",
-        "appActivity": ".Main",
+        # Запущено заранее через open_whatsapp; просто прикрепляемся
+        "autoLaunch": False,
+        "appActivity": "com.whatsapp.Main",
+        "appWaitActivity": "*",
         "noReset": True,
         "fullReset": False,
+        "newCommandTimeout": 1200,
     }
     
     # Пробуем подключиться несколько раз
