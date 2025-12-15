@@ -53,10 +53,7 @@ def main():
     run_memuc(["setconfigex", "-i", str(index), "is_root_mode", "1"])
     run_memuc(["setconfigex", "-i", str(index), "root_mode", "1"])
 
-    # 5. Перезагрузка для применения настроек (Stop -> Start)
-    print(f"🔄 Перезапускаю инстанс {index} для применения Root...")
-    run_memuc(["stop", "-i", str(index)])
-    time.sleep(3)
+    # 5. Запускаем (один раз)
     print(f"▶️  Запускаю инстанс {index}...")
     run_memuc(["start", "-i", str(index)])
     
