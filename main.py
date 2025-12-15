@@ -179,59 +179,32 @@ def install_accessibility_service(device_name: str):
 
 
 def setup_proxydroid(driver, device_name):
-    """Настройка ProxyDroid: Запуск, Права Root, Включение"""
-    print("\n🌍 Настраиваю ProxyDroid (права + запуск)...")
+    """Настройка ProxyDroid: Запуск через ADB команды"""
+    print("\n🌍 Включаю ProxyDroid через сервис (ADB)...")
     
     try:
-        driver.activate_app("org.proxydroid")
+        # 1. Пытаемся запустить сервис напрямую (минуя UI)
+        # Это работает на многих версиях ProxyDroid
+        cmd_service = [ADB_PATH, "-s", device_name, "shell", "am", "startservice", "-n", "org.proxydroid/.ProxyDroidService"]
+        subprocess.run(cmd_service, capture_output=True)
+        
+        # 2. На всякий случай шлем броадкаст (для версий с поддержкой интентов)
+        cmd_broadcast = [ADB_PATH, "-s", device_name, "shell", "am", "broadcast", "-a", "org.proxydroid.intent.action.START"]
+        subprocess.run(cmd_broadcast, capture_output=True)
+        
+        print("✓ Команды запуска отправлены")
         time.sleep(3)
         
-        # 1. Диалог "СНАЧАЛА НЕОБХОДИМО ПОЛУЧИТЬ ПРАВА..." -> Хорошо
-        try:
-             ok_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Хорошо")')
-             ok_btn.click()
-             print("✓ Нажато 'Хорошо'")
-             time.sleep(2)
-        except: pass
-
-        # 2. Диалог Superuser -> Grant / Разрешить (иногда вылезает)
+        # 3. Проверка: Если вылезло окно Root прав - надо нажать Grant
+        # (Это всё равно нужно, если приложение запускается первый раз)
         try:
              grant_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Grant").clickable(true)')
              grant_btn.click()
              print("✓ Нажато 'Grant' (Root)")
-             time.sleep(2)
-        except:
-             try:
-                 allow_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Разрешить").clickable(true)')
-                 allow_btn.click()
-                 print("✓ Нажато 'Разрешить' (Root)")
-             except: pass
-             
-        # 3. Включаем свитч
-        try:
-            switch = driver.find_element(AppiumBy.CLASS_NAME, "android.widget.Switch")
-            if switch.get_attribute("checked") != "true":
-                switch.click()
-                print("✓ ProxyDroid включен (Switch)")
-                time.sleep(2)
-                
-                # Еще раз может вылезти Grant после клика по свитчу
-                try:
-                     grant_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Grant").clickable(true)')
-                     grant_btn.click()
-                     print("✓ Нажато 'Grant' после свитча")
-                except: pass
-                
-            else:
-                print("✓ ProxyDroid уже включен")
-        except:
-             print("⚠️ Свитч не найден")
-        
-        # Сворачиваем
-        driver.press_keycode(3)
+        except: pass
         
     except Exception as e:
-        print(f"⚠️ Ошибка setup_proxydroid: {e}")
+        print(f"⚠️ Ошибка запуска ProxyDroid: {e}")
 
 def install_whatsapp(device_name: str):
     """Установить WhatsApp APK на эмулятор"""
