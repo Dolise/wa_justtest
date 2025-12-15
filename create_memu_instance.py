@@ -102,10 +102,16 @@ def main():
              target_file = None
              import glob
              # Ищем рекурсивно
+             print(f"🔎 Ищу конфиг MEmu_{index}.memu в {vms_dir}...")
              candidates = glob.glob(os.path.join(vms_dir, f"**", f"MEmu_{index}.memu"), recursive=True)
              if not candidates:
-                 # Пробуем просто MEmu.memu если индекс 0? нет, индекс точно есть
-                 pass
+                 print(f"⚠️ Конфиг не найден рекурсивно. Пробую искать просто по имени папки...")
+                 # Попробуем предсказать путь: MemuHyperv VMs\MEmu_{index}\MEmu_{index}.memu
+                 predicted = os.path.join(vms_dir, f"MEmu_{index}", f"MEmu_{index}.memu")
+                 if os.path.exists(predicted):
+                     candidates = [predicted]
+                 else:
+                     print(f"⚠️ И по пути {predicted} тоже нет.")
              
              if candidates:
                  target_file = candidates[0]
