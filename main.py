@@ -172,81 +172,6 @@ def install_accessibility_service(device_name: str):
     return True
 
 
-def setup_socksdroid(driver, device_name):
-    """Настройка SocksDroid: конфиг через ADB, включение через Appium"""
-    print("\n🌍 Настраиваю SocksDroid...")
-    
-    local_conf = "socksdroid_profile.xml"
-    remote_conf = "/data/data/net.typeblog.socks/shared_prefs/profile.xml"
-
-    # 1. Push Config
-    try:
-        # Stop app
-        subprocess.run([ADB_PATH, "-s", device_name, "shell", "am", "force-stop", "net.typeblog.socks"], capture_output=True)
-        # Push
-        if not os.path.exists(local_conf):
-             print(f"⚠️ Файл конфига {local_conf} не найден!")
-             return False
-             
-        subprocess.run([ADB_PATH, "-s", device_name, "push", local_conf, remote_conf], check=True)
-        # Permissions (crucial for shared_prefs)
-        subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", remote_conf], check=True)
-        print("✓ Конфиг загружен")
-    except Exception as e:
-        print(f"⚠️ Ошибка push конфига: {e}")
-        return False
-
-    # 2. Start App
-    try:
-        driver.activate_app("net.typeblog.socks")
-        time.sleep(2)
-    except:
-        # Fallback if activate_app fails
-        subprocess.run([ADB_PATH, "-s", device_name, "shell", "monkey", "-p", "net.typeblog.socks", "1"], capture_output=True)
-        time.sleep(2)
-
-    # 3. Enable Proxy (Click Toggle)
-    try:
-        # Try to find switch
-        # Usually checking 'android.widget.Switch' is enough if it's the only one
-        try:
-            switch = driver.find_element(AppiumBy.CLASS_NAME, "android.widget.Switch")
-            if switch.get_attribute("checked") != "true":
-                switch.click()
-                print("✓ Переключатель нажат")
-                time.sleep(2)
-                
-                # 4. Handle VPN Permission Dialog
-                try:
-                    # Look for "OK" or "Allow"
-                    # android:id/button1 is standard for "OK" in system dialogs
-                    ok_btn = driver.find_element(AppiumBy.ID, "android:id/button1")
-                    ok_btn.click()
-                    print("✓ VPN доступ подтвержден")
-                except:
-                    # Check if maybe it's "Allow" text
-                    try:
-                         allow_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
-                         allow_btn.click()
-                    except:
-                         pass
-            else:
-                print("✓ Прокси уже включен")
-        except:
-             print("⚠️ Свитч не найден, пробую blind tap (top-right)")
-             # Fallback blind tap
-             subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", "650", "100"])
-             time.sleep(1)
-             # Try confirm VPN blind
-             subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", "540", "1000"]) # Bottom center-ish
-
-    except Exception as e:
-        print(f"⚠️ Ошибка включения UI: {e}")
-        
-    # Go Home
-    driver.press_keycode(3)
-    time.sleep(1)
-    return True
 
 
 
@@ -780,9 +705,6 @@ def main():
             # Примечание: connect_appium уже поправлен на com.android.settings
             driver = connect_appium(device_name)
             
-            # 4.1 Настроить Proxy (SocksDroid)
-            if not setup_socksdroid(driver, device_name):
-                print("⚠️ Не удалось настроить прокси, но пробую продолжить...")
             
             # 4.2 Запустить WhatsApp через драйвер
             print("📱 Запускаю WhatsApp...")
