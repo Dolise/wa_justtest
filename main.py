@@ -270,31 +270,8 @@ def click_agree_button(driver):
 def enter_phone_number(driver, phone_number: str):
     """Ввести номер телефона"""
     try:
-        # Сначала нажать Allow на диалоге про уведомления (обязательно есть)
-        print("⏳ Ищу диалог про уведомления (polling до 10 сек)...")
-        max_attempts = 20  # 20 попыток по 0.5 сек = 10 секунд
-        allow_found = False
-        
-        for attempt in range(max_attempts):
-            try:
-                allow_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Allow").clickable(true)')
-                print(f"✓ Диалог найден на попытке {attempt + 1}, нажимаю Allow...")
-                time.sleep(0.5)  # Небольшая задержка перед кликом
-                allow_btn.click()
-                print("✓ Нажата кнопка 'Allow'")
-                time.sleep(2)
-                allow_found = True
-                break
-            except:
-                if attempt % 5 == 0 and attempt > 0:
-                    print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
-                time.sleep(0.5)
-        
-        if not allow_found:
-            raise Exception("Диалог про уведомления не появился за 10 секунд")
-        
         # Найти оба поля ввода
-        print("⏳ Ищем поля ввода...")
+        print("⏳ Ищем поля ввода номера...")
         edit_texts = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
         
         if len(edit_texts) >= 2:
