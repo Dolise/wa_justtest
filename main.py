@@ -172,119 +172,82 @@ def install_accessibility_service(device_name: str):
     return True
 
 
-def setup_superproxy(driver):
-    """Настройка SuperProxy через Appium"""
-    print("\n🌍 Настраиваю SuperProxy...")
+def setup_socksdroid(driver, device_name):
+    """Настройка SocksDroid: конфиг через ADB, включение через Appium"""
+    print("\n🌍 Настраиваю SocksDroid...")
     
+    local_conf = "socksdroid_profile.xml"
+    remote_conf = "/data/data/net.typeblog.socks/shared_prefs/profile.xml"
+
+    # 1. Push Config
     try:
-        # Запускаем SuperProxy
-        driver.activate_app("com.scheler.superproxy")
-        time.sleep(5)
-        
-        # Данные прокси
-        PROXY_HOST = "na.proxy.piaproxy.com"
-        PROXY_PORT = "5000"
-        PROXY_USER = "user-mtt33_A0xiF-region-ru"
-        PROXY_PASS = "nskjfdbnker4G"
-        
-        # 2. Жмем "Add proxy" (кнопка +)
-        # Ищем кнопку добавления (fab_add)
-        try:
-            add_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/fab_add")
-            add_btn.click()
-            print("✓ Нажата кнопка 'Add Proxy'")
-            time.sleep(2)
-        except:
-            print("⚠️ Кнопка Add не найдена, возможно профиль уже создан. Пробую редактировать...")
-            # Попробуем кликнуть по первому элементу в списке
-            try:
-                first_item = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_list_item")
-                first_item.click()
-            except:
-                print("❌ Не удалось открыть создание/редактирование профиля")
-                return False
-
-        # 3. Заполняем поля
-        # Profile Name
-        try:
-            name_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/profile_name")
-            name_field.clear()
-            name_field.send_keys("MyProxy")
-        except: pass
-
-        # Protocol (SOCKS5)
-        try:
-            proto_spinner = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_type")
-            proto_spinner.click()
-            time.sleep(1)
-            socks5_opt = driver.find_element(AppiumBy.XPATH, "//android.widget.CheckedTextView[@text='SOCKS5']")
-            socks5_opt.click()
-            print("✓ Выбран протокол SOCKS5")
-        except: pass
-
-        # Host
-        host_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_host")
-        host_field.clear()
-        host_field.send_keys(PROXY_HOST)
-        
-        # Port
-        port_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_port")
-        port_field.clear()
-        port_field.send_keys(PROXY_PORT)
-        
-        # Auth
-        try:
-            auth_check = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/auth_required")
-            if not auth_check.get_attribute("checked") == "true":
-                auth_check.click()
-        except: pass
-        
-        # User
-        user_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_user")
-        user_field.clear()
-        user_field.send_keys(PROXY_USER)
-        
-        # Pass
-        pass_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_pass")
-        pass_field.clear()
-        pass_field.send_keys(PROXY_PASS)
-        
-        # Save (дискета сверху)
-        save_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_save")
-        save_btn.click()
-        print("✓ Настройки прокси сохранены")
-        time.sleep(2)
-        
-        # 4. Запускаем (Start)
-        try:
-            # Ищем наш профиль и кнопку Start (обычно она появляется после выбора)
-            start_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_start") # Если есть глобальная кнопка
-            start_btn.click()
-        except:
-            # Если нет глобальной, пробуем кликнуть по профилю и там Start
-            try:
-                item = driver.find_element(AppiumBy.XPATH, "//android.widget.TextView[@text='MyProxy']")
-                item.click()
-                time.sleep(1)
-                start_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_start")
-                start_btn.click()
-            except:
-                print("⚠️ Не удалось найти кнопку старт, возможно уже запущен")
-
-        print("✓ Прокси запущен (надеюсь)")
-        
-        # Сворачиваем (Home)
-        driver.press_keycode(3) 
-        time.sleep(1)
-        return True
-        
+        # Stop app
+        subprocess.run([ADB_PATH, "-s", device_name, "shell", "am", "force-stop", "net.typeblog.socks"], capture_output=True)
+        # Push
+        if not os.path.exists(local_conf):
+             print(f"⚠️ Файл конфига {local_conf} не найден!")
+             return False
+             
+        subprocess.run([ADB_PATH, "-s", device_name, "push", local_conf, remote_conf], check=True)
+        # Permissions (crucial for shared_prefs)
+        subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", remote_conf], check=True)
+        print("✓ Конфиг загружен")
     except Exception as e:
-        print(f"❌ Ошибка настройки прокси: {e}")
-        # Делаем скриншот для отладки
-        try:
-            driver.save_screenshot("proxy_error.png")
-        except: pass
+        print(f"⚠️ Ошибка push конфига: {e}")
         return False
+
+    # 2. Start App
+    try:
+        driver.activate_app("net.typeblog.socks")
+        time.sleep(2)
+    except:
+        # Fallback if activate_app fails
+        subprocess.run([ADB_PATH, "-s", device_name, "shell", "monkey", "-p", "net.typeblog.socks", "1"], capture_output=True)
+        time.sleep(2)
+
+    # 3. Enable Proxy (Click Toggle)
+    try:
+        # Try to find switch
+        # Usually checking 'android.widget.Switch' is enough if it's the only one
+        try:
+            switch = driver.find_element(AppiumBy.CLASS_NAME, "android.widget.Switch")
+            if switch.get_attribute("checked") != "true":
+                switch.click()
+                print("✓ Переключатель нажат")
+                time.sleep(2)
+                
+                # 4. Handle VPN Permission Dialog
+                try:
+                    # Look for "OK" or "Allow"
+                    # android:id/button1 is standard for "OK" in system dialogs
+                    ok_btn = driver.find_element(AppiumBy.ID, "android:id/button1")
+                    ok_btn.click()
+                    print("✓ VPN доступ подтвержден")
+                except:
+                    # Check if maybe it's "Allow" text
+                    try:
+                         allow_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                         allow_btn.click()
+                    except:
+                         pass
+            else:
+                print("✓ Прокси уже включен")
+        except:
+             print("⚠️ Свитч не найден, пробую blind tap (top-right)")
+             # Fallback blind tap
+             subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", "650", "100"])
+             time.sleep(1)
+             # Try confirm VPN blind
+             subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", "540", "1000"]) # Bottom center-ish
+
+    except Exception as e:
+        print(f"⚠️ Ошибка включения UI: {e}")
+        
+    # Go Home
+    driver.press_keycode(3)
+    time.sleep(1)
+    return True
+
 
 
 def install_whatsapp(device_name: str):
@@ -817,8 +780,8 @@ def main():
             # Примечание: connect_appium уже поправлен на com.android.settings
             driver = connect_appium(device_name)
             
-            # 4.1 Настроить Proxy (SuperProxy)
-            if not setup_superproxy(driver):
+            # 4.1 Настроить Proxy (SocksDroid)
+            if not setup_socksdroid(driver, device_name):
                 print("⚠️ Не удалось настроить прокси, но пробую продолжить...")
             
             # 4.2 Запустить WhatsApp через драйвер

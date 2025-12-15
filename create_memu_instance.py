@@ -60,8 +60,8 @@ def main():
     adb_port = 21503 + (index * 10)
     device_name = f"127.0.0.1:{adb_port}"
 
-    # 7. Устанавливаем SuperProxy (или другой apk для прокси)
-    apk_proxy = "superproxy.apk"
+    # 7. Устанавливаем SocksDroid (для прокси)
+    apk_proxy = "socksdroid.apk"
     if os.path.exists(apk_proxy):
         print(f"🌍 Устанавливаю {apk_proxy}...")
         # memuc installapp -i <index> <apk_path>
