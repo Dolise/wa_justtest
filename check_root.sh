@@ -23,3 +23,4 @@ ADB="/Users/redmcollar/Desktop/traff_repos/wa_sandbox/adb_check"
 # Мне нужно дать инструкцию юзеру или изменить скрипт, чтобы он проверил.
 
 echo "Cannot check root remotely via shell tool effectively if device is local to Windows machine."
+

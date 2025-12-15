@@ -2,1004 +2,350 @@ import subprocess
 import time
 import os
 import sys
+import re
 import requests
 import threading
 from pathlib import Path
-from appium import webdriver
-from appium.webdriver.common.appiumby import AppiumBy
 
-# Получить путь к Android SDK
-ANDROID_HOME = os.getenv("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
-EMULATOR_PATH = os.path.join(ANDROID_HOME, "emulator", "emulator")
+# ==========================================
+# КОНФИГУРАЦИЯ
+# ==========================================
 
 # Путь к ADB (для Windows с MEMU)
-ADB_PATH = os.getenv("ADB_PATH") or "C:\\Program Files\\Microvirt\\MEmu\\adb.exe"
-if not os.path.exists(ADB_PATH):
-    # Пытаемся найти в Android SDK
-    ADB_PATH = os.path.join(ANDROID_HOME, "platform-tools", "adb.exe")
-if not os.path.exists(ADB_PATH):
-    ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
+ADB_PATH = os.getenv("ADB_PATH") or r"C:\Program Files\Microvirt\MEmu\adb.exe"
 
-# MEMU device ID (автоопределение)
-MEMU_DEVICE = os.getenv("MEMU_DEVICE")
-if not MEMU_DEVICE:
-    try:
-        # Пробуем найти через adb devices
-        # ADB_PATH уже определен выше
-        res = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
-        # Ищем первый попавшийся 127.0.0.1:2xxxx
-        import re
-        match = re.search(r"(127\.0\.0\.1:2\d{4})\s+device", res.stdout)
-        if match:
-            MEMU_DEVICE = match.group(1)
-            print(f"✓ Автоматически найден MEmu девайс: {MEMU_DEVICE}")
-    except Exception:
-        pass
+# ==========================================
+# ADB CONTROLLER (ЗАМЕНА APPIUM)
+# ==========================================
 
-if not MEMU_DEVICE:
-    MEMU_DEVICE = "127.0.0.1:21503"  # Дефолт (индекс 0)
+class ADBController:
+    def __init__(self, device_name):
+        self.device_name = device_name
+        self.adb = ADB_PATH
 
-USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
-
-
-def start_emulator(avd_name: str, port: int = 5554, show_gui: bool = False):
-    """Запустить эмулятор Android или вернуть MEMU device ID"""
-    if USE_MEMU:
-        print(f"✓ Используется MEMU: {MEMU_DEVICE}")
-        return MEMU_DEVICE
-    
-    if not os.path.exists(EMULATOR_PATH):
-        raise FileNotFoundError(f"Emulator not found at {EMULATOR_PATH}. Please install Android SDK.")
-    
-    device_name = f"emulator-{port}"
-    
-    # Проверить не запущен ли уже эмулятор
-    result = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
-    if f"{device_name}\tdevice" in result.stdout:
-        print(f"✓ Эмулятор {device_name} уже запущен, переиспользую")
-        return device_name
-    
-    print(f"🚀 Запускаю эмулятор {avd_name} на порту {port}...")
-    
-    cmd = [
-        EMULATOR_PATH,
-        "-avd", avd_name,
-        "-port", str(port),
-        "-gpu", "swiftshader_indirect",  # Software rendering
-        "-no-snapshot-load",
-        "-no-boot-anim"
-    ]
-    
-    if not show_gui:
-        cmd.append("-no-window")
-        print(f"  (запуск без GUI)")
-    else:
-        print(f"  (запуск с GUI окном)")
-    
-    # Запустить в отдельной сессии чтобы не убивался при завершении скрипта
-    subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True
-    )
-    print(f"✓ Эмулятор {avd_name} запущен на порту {port}")
-    print("⏳ Ожидание полной загрузки эмулятора (макс 20 сек)...")
-    
-    # Ждем, пока эмулятор подключится к adb (макс 20 секунд)
-    max_attempts = 10  # 10 попыток по 2 секунды = 20 секунд
-    for i in range(max_attempts):
+    def run_shell(self, cmd, timeout=10):
+        """Выполнить shell команду"""
+        full_cmd = [self.adb, "-s", self.device_name, "shell"] + cmd.split()
         try:
-            result = subprocess.run(
-                [ADB_PATH, "-s", device_name, "shell", "getprop", "sys.boot_completed"],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            if result.returncode == 0 and "1" in result.stdout:
-                print(f"✓ Эмулятор полностью загружен")
-                return device_name
+            return subprocess.run(full_cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=timeout)
         except subprocess.TimeoutExpired:
-            pass
+            print(f"⚠️ Timeout команды: {cmd}")
+            return None
+
+    def tap(self, x, y):
+        """Клик по координатам"""
+        self.run_shell(f"input tap {x} {y}")
+
+    def text(self, text):
+        """Ввод текста"""
+        # Экранирование пробелов и спецсимволов для ADB
+        escaped_text = text.replace(" ", "%s").replace("'", r"\'")
+        self.run_shell(f"input text {escaped_text}")
+
+    def keyevent(self, keycode):
+        """Нажатие кнопки (66=ENTER, 67=BACKSPACE, 3=HOME)"""
+        self.run_shell(f"input keyevent {keycode}")
+
+    def get_ui_dump(self):
+        """Получить XML текущего экрана через uiautomator"""
+        remote_dump = "/data/local/tmp/window_dump.xml"
         
-        time.sleep(2)
-        print(f"  Попытка {i+1}/{max_attempts}...")
-    
-    # Если эмулятор не поднялся за 20 секунд - выбрасываем исключение
-    print("❌ Эмулятор не поднялся за 20 секунд")
-    raise Exception("Emulator failed to start in 20 seconds")
-
-
-def install_accessibility_service(device_name: str):
-    """Установить и включить Accessibility Service"""
-    print("\n🔧 Устанавливаю Accessibility Service...")
-    
-    # Установка APK
-    result = subprocess.run(
-        [ADB_PATH, "-s", device_name, "install", "-r", "wa_clicker.apk"],
-        capture_output=True,
-        text=True
-    )
-    
-    if result.returncode == 0:
-        print("✓ WA Clicker APK установлен")
-    else:
-        print(f"⚠️  Ошибка установки WA Clicker: {result.stderr}")
-        return False
-    
-    # Автоматически включаем сервис
-    print("⏳ Включаю Accessibility Service...")
-    
-    # Получаем текущий список enabled services
-    result = subprocess.run([
-        ADB_PATH, "-s", device_name, "shell", "settings", "get", "secure",
-        "enabled_accessibility_services"
-    ], capture_output=True, text=True)
-    
-    current_services = result.stdout.strip()
-    if current_services and current_services != "null":
-        new_services = current_services + ":com.wa.clicker/com.wa.clicker.WAClickerService"
-    else:
-        new_services = "com.wa.clicker/com.wa.clicker.WAClickerService"
-    
-    subprocess.run([
-        ADB_PATH, "-s", device_name, "shell", "settings", "put", "secure",
-        "enabled_accessibility_services", new_services
-    ], capture_output=True)
-    
-    subprocess.run([
-        ADB_PATH, "-s", device_name, "shell", "settings", "put", "secure",
-        "accessibility_enabled", "1"
-    ], capture_output=True)
-    
-    print("✓ Accessibility Service включен в настройках")
-    
-    # ТРИГГЕР: Открываем настройки Accessibility чтобы сервис реально запустился
-    print("🔄 Триггерю запуск сервиса через настройки...")
-    subprocess.run([
-        ADB_PATH, "-s", device_name, "shell", "am", "start",
-        "-a", "android.settings.ACCESSIBILITY_SETTINGS"
-    ], capture_output=True)
-    time.sleep(2)
-    
-    # Закрываем настройки
-    subprocess.run([
-        ADB_PATH, "-s", device_name, "shell", "input", "keyevent", "KEYCODE_HOME"
-    ], capture_output=True)
-    time.sleep(1)
-    
-    print("✓ Accessibility Service должен быть активен")
-    return True
-
-
-
-
-
-
-
-
-def setup_proxydroid(driver, device_name):
-    """Настройка ProxyDroid: Загрузка конфига и запуск"""
-    print("\n🌍 Настраиваю ProxyDroid...")
-    import re
-    
-    try:
-        # 0. Заливаем конфиг (важно, чтобы обновить Bypass List)
-        local_conf = "proxydroid_prefs.xml"
-        if os.path.exists(local_conf):
-            print("📂 Загружаю конфиг с Bypass List...")
-            # Останавливаем перед заменой конфига
-            subprocess.run([ADB_PATH, "-s", device_name, "shell", "am", "force-stop", "org.proxydroid"], capture_output=True, timeout=5)
-            
-            target_path = "/data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml"
-            subprocess.run([ADB_PATH, "-s", device_name, "push", local_conf, target_path], check=True, timeout=5)
-            # Права 777, чтобы приложение могло читать
-            subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", target_path], timeout=5)
-            print("✓ Конфиг обновлен")
-        
-        # 1. Пытаемся запустить сервис напрямую (минуя UI)
-        cmd_service = [ADB_PATH, "-s", device_name, "shell", "am", "startservice", "-n", "org.proxydroid/.ProxyDroidService"]
-        subprocess.run(cmd_service, capture_output=True, timeout=10)
-        
-        # 2. На всякий случай шлем броадкаст
-        cmd_broadcast = [ADB_PATH, "-s", device_name, "shell", "am", "broadcast", "-a", "org.proxydroid.intent.action.START"]
-        subprocess.run(cmd_broadcast, capture_output=True, timeout=10)
-        print("✓ Команды запуска отправлены")
-        time.sleep(2)
-
-        # 3. ОБРАБОТКА ДИАЛОГА "СНАЧАЛА ПОЛУЧИТЕ ПРАВА" (Хорошо/OK)
-        # Этот диалог блокирует запрос рут прав, если его не закрыть
-        print("🕵️ Проверяю диалог 'Хорошо/OK'...")
-        try:
-            # Сначала пробуем Appium
-            ok_selectors = [
-                'new UiSelector().text("Хорошо")',
-                'new UiSelector().text("OK")',
-                'new UiSelector().text("Ok")',
-                'new UiSelector().resourceId("android:id/button1")',
-                'new UiSelector().className("android.widget.Button").textContains("OK")',
-                'new UiSelector().className("android.widget.Button").textContains("Хорошо")',
-            ]
-            for sel in ok_selectors:
-                try:
-                    btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                    btn.click()
-                    print(f"✓ Нажато '{sel}' (Appium)")
-                    time.sleep(1)
-                    break
-                except: pass
-        except: pass
-
-        # Фолбэк через uiautomator dump для 'Хорошо'
-        try:
-             dump_path = "/data/local/tmp/dump_ok.xml"
-             local_dump = "window_dump_ok.xml"
-             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True, timeout=15)
-             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True, timeout=5)
-             
-             if os.path.exists(local_dump):
-                 with open(local_dump, "r", encoding="utf-8", errors="ignore") as f:
-                     content = f.read()
-                     # Ищем OK/Хорошо
-                     match = re.search(r'text="([^"]*(?:OK|Хорошо)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', content, re.IGNORECASE)
-                     if match:
-                         text = match.group(1)
-                         x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
-                         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                         print(f"✓ Найдена кнопка '{text}' в дампе! Жму ({cx}, {cy})")
-                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(cx), str(cy)], check=True, timeout=5)
-                         time.sleep(2)
-        except Exception as e:
-             print(f"⚠️ Ошибка поиска OK в дампе: {e}")
-
-        # 4. Попытка выдать права через AppOps (работает на некоторых Android)
-        print("🔧 Пытаюсь выдать Root права через AppOps...")
-        subprocess.run([ADB_PATH, "-s", device_name, "shell", "appops", "set", "org.proxydroid", "SU", "allow"], capture_output=True, timeout=5)
-        
-        # 5. Умный поиск кнопки Grant через uiautomator dump
-        try:
-             print("🕵️ Ищу окно SuperUser через uiautomator...")
-             dump_path = "/data/local/tmp/dump.xml"
-             local_dump = "window_dump.xml"
-             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True, timeout=15)
-             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True, timeout=5)
-             
-             if os.path.exists(local_dump):
-                 with open(local_dump, "r", encoding="utf-8", errors="ignore") as f:
-                     content = f.read()
-                     # Ищем слова
-                     match = re.search(r'text="([^"]*(?:Grant|Allow|Разрешить)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', content, re.IGNORECASE)
-                     if match:
-                         text = match.group(1)
-                         x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
-                         center_x = (x1 + x2) // 2
-                         center_y = (y1 + y2) // 2
-                         print(f"✓ Найдена кнопка '{text}' в дампе! Жму ({center_x}, {center_y})")
-                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(center_x), str(center_y)], check=True, timeout=5)
-                         time.sleep(2)
-                     else:
-                         print("⚠️ Кнопка Grant не найдена в дампе uiautomator")
-        except Exception as e:
-             print(f"⚠️ Ошибка умного поиска Grant: {e}")
-
-        # 6. Проверка: Если вылезло окно Root прав - надо нажать Grant через Appium
-        try:
-             grant_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Grant").clickable(true)')
-             grant_btn.click()
-             print("✓ Нажато 'Grant' (Root)")
-        except: pass
-        
-    except Exception as e:
-        print(f"⚠️ Ошибка запуска ProxyDroid: {e}")
-
-def install_whatsapp(device_name: str):
-    """Установить WhatsApp APK на эмулятор"""
-    apk_path = "whatsapp.apk"  # Путь к APK файлу
-    subprocess.run([ADB_PATH, "-s", device_name, "install", apk_path], check=True)
-    print(f"✓ WhatsApp установлен на {device_name}")
-
-
-def open_whatsapp(device_name: str):
-    """Открыть WhatsApp приложение"""
-    try:
-        subprocess.run(
-            [ADB_PATH, "-s", device_name, "shell", "am", "start", "-n", "com.whatsapp/.Main"],
-            check=True,
-        )
-        print(f"✓ WhatsApp открыт на {device_name}")
-        time.sleep(5)  # Ждем, пока приложение загрузится
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Ошибка при открытии WhatsApp: {e}")
-        raise
-
-
-def connect_appium(device_name: str, appium_port: int = 4723):
-    """Подключиться к эмулятору через Appium"""
-    # Проверяем что девайс online перед подключением
-    print(f"⏳ Проверяю статус {device_name}...")
-    for attempt in range(5):
-        result = subprocess.run(
-            [ADB_PATH, "devices"],
-            capture_output=True,
-            text=True
-        )
-        
-        if f"{device_name}\tdevice" in result.stdout:
-            print(f"✓ Девайс {device_name} online")
-            break
-        
-        if f"{device_name}\toffline" in result.stdout or device_name not in result.stdout:
-            print(f"  ⚠️  Девайс offline, пытаюсь восстановить соединение ({attempt+1}/5)...")
-            # Перезапускаем ADB сервер
-            subprocess.run([ADB_PATH, "kill-server"], capture_output=True)
-            time.sleep(2)
-            subprocess.run([ADB_PATH, "start-server"], capture_output=True)
-            time.sleep(3)
-        else:
-            break
-    
-    # Дополнительная задержка перед подключением Appium
-    time.sleep(2)
-    
-    # Очищаем логи перед подключением (помогает UiAutomator2 запуститься быстрее)
-    subprocess.run(
-        [ADB_PATH, "-s", device_name, "logcat", "-c"],
-        capture_output=True
-    )
-    time.sleep(1)
-    
-    caps = {
-        "platformName": "Android",
-        "automationName": "UiAutomator2",
-        "deviceName": device_name,
-        "udid": device_name,
-        "appPackage": "com.android.settings",  # Подключаемся к настройкам, а не к WA
-        "appActivity": ".Settings",
-        "autoLaunch": False,  # Не запускать настройки принудительно
-        "appWaitActivity": "*",
-        "noReset": True,
-        "fullReset": False,
-        "newCommandTimeout": 1200,
-    }
-    
-    # Пробуем подключиться несколько раз
-    max_retries = 3
-    import socket
-    
-    # Проверка доступности порта Appium
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(('127.0.0.1', appium_port))
-        if result == 0:
-            print(f"✓ Порт {appium_port} доступен")
-        else:
-            print(f"⚠️ Порт {appium_port} закрыт! Запущен ли Appium Server?")
-        sock.close()
-    except: pass
-
-    for retry in range(max_retries):
-        try:
-            print(f"🔌 Подключаюсь к Appium (http://127.0.0.1:{appium_port})...")
-            # Используем 127.0.0.1 вместо localhost, чтобы избежать проблем с Proxifier/DNS
-            driver = webdriver.Remote(f"http://127.0.0.1:{appium_port}", caps)
-            print(f"✓ Appium подключен к {device_name}")
-            return driver
-        except Exception as e:
-            if retry < max_retries - 1:
-                print(f"❌ Ошибка подключения Appium (попытка {retry + 1}/{max_retries}): {e}")
-                print(f"⏳ Жду 10 сек и пробую еще раз...")
-                time.sleep(10)
-                
-                # Очищаем логи
-                subprocess.run(
-                    [ADB_PATH, "-s", device_name, "logcat", "-c"],
-                    capture_output=True
-                )
-                time.sleep(2)
-            else:
-                # Последняя попытка - выбрасываем ошибку
-                print(f"❌ Не удалось подключиться к Appium после {max_retries} попыток")
-                raise
-
-
-def click_agree_button(driver):
-    """Кликнуть по кнопке 'Согласиться и продолжить' (или AGREE AND CONTINUE)"""
-    try:
-        print("⏳ Жду загрузки экрана (2 сек)...")
-        time.sleep(2)
-
-        print("⏳ Ищем кнопку согласия (polling до 15 сек)...")
-        max_attempts = 30  # 30 попыток по 0.5 сек = 15 секунд
-        agree_btn = None
-
-        for attempt in range(max_attempts):
-            selectors = [
-                'new UiSelector().text("Принять и продолжить").clickable(true)',
-                'new UiSelector().text("AGREE AND CONTINUE").clickable(true)',
-                'new UiSelector().textContains("риня").clickable(true)',
-                'new UiSelector().textContains("AGREE").clickable(true)',
-                # Часто у кнопки бывает ресурс id
-                'new UiSelector().resourceId("com.whatsapp:id/eula_accept").clickable(true)',
-            ]
-            for sel in selectors:
-                try:
-                    agree_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                    print(f"✓ Найдено по селектору: {sel}")
-                    break
-                except Exception:
-                    continue
-            if agree_btn:
+        # 1. Создаем дамп на устройстве
+        # Иногда uiautomator падает, поэтому пробуем пару раз
+        for _ in range(2):
+            res = self.run_shell(f"uiautomator dump {remote_dump}", timeout=15)
+            if res and "UI hierchary dumped to" in res.stdout:
                 break
-            if attempt % 10 == 0 and attempt > 0:
-                print(f"  ⏳ Попытка {attempt}/{max_attempts}...")
-            time.sleep(0.5)
-
-        if agree_btn:
-            agree_btn.click()
-            print("✓ Нажата кнопка согласия")
-            time.sleep(2)
-        else:
-            # Сохраняем page source для дебага
-            print("⚠️  Кнопка не найдена, сохраняю page source...")
-            try:
-                with open("agree_screen.xml", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                print("✓ Page source сохранён в agree_screen.xml")
-            except Exception as save_err:
-                print(f"⚠️ Не удалось сохранить page source: {save_err}")
-            
-            # Фолбэк: кликаем внизу по центру (там обычно кнопка)
-            print("⚠️  Жму по координатам снизу экрана")
-            size = driver.get_window_size()
-            x = size["width"] // 2
-            y = int(size["height"] * 0.9)
-            print(f"   Клик по ({x}, {y})")
-            driver.tap([(x, y)])
-            time.sleep(2)
-    except Exception as e:
-        print(f"✗ Ошибка: {e}")
-
-
-def enter_phone_number(driver, phone_number: str):
-    """Ввести номер телефона"""
-    try:
-        # Даём время на загрузку экрана
-        print("⏳ Жду загрузки экрана ввода номера (3 сек)...")
-        time.sleep(3)
-        
-        # Найти оба поля ввода
-        print("⏳ Ищем поля ввода номера...")
-        edit_texts = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
-        
-        if len(edit_texts) >= 2:
-            # Первое поле = код страны
-            print("✓ Нашли оба поля")
-            country_code_input = edit_texts[0]
-            phone_input = edit_texts[1]
-            
-            # Очистить и ввести код страны (для России)
-            country_code_input.clear()
-            country_code_input.send_keys("7")
-            print("✓ Код страны 7 введен")
             time.sleep(1)
-            
-            # Очистить и ввести номер без кода страны
-            phone_input.clear()
-            phone_without_country = phone_number.lstrip('+').lstrip('7')  # Убрать +7
-            phone_input.send_keys(phone_without_country)
-            print(f"✓ Номер {phone_without_country} введен")
-            time.sleep(1)
-            return True
-        else:
-            print(f"✗ Найдено только {len(edit_texts)} поле(й), ожидалось 2")
-            
-            # Сохраняем page source для дебага
-            print("⚠️  Сохраняю page source...")
-            try:
-                with open("phone_screen.xml", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                print("✓ Page source сохранён в phone_screen.xml")
-            except:
-                pass
-            
-            return False
-    except Exception as e:
-        print(f"✗ Ошибка при вводе номера: {e}")
-        return False
 
+        # 2. Читаем файл прямо через cat (быстрее, чем pull)
+        res = self.run_shell(f"cat {remote_dump}", timeout=5)
+        if res and res.stdout:
+            return res.stdout
+        return ""
 
-def redirect_calls_to_sip(phone_number: str):
-    """Перенаправить входящие звонки на SIP через MTT API"""
-    print(f"\n📞 Настраиваю перенаправление звонков для {phone_number}...")
-    
-    # MTT API параметры
-    MTT_USERNAME = "ip_ivanchin"
-    MTT_PASSWORD = "s13jgSxHpQ"
-    CLIENT_ID = "110028011"
-    ASTERISK_SIP_ID = "883140005582687"
-    
-    # Формируем номер для MTT (без +)
-    mtt_phone = phone_number.lstrip('+')
-    
-    data = {
-        "id": "1",
-        "jsonrpc": "2.0",
-        "method": "SetReserveStruct",
-        "params": {
-            "sip_id": mtt_phone,
-            "redirect_type": 1,
-            "masking": "N",
-            "controlCallStruct": [
-                {
-                    "I_FOLLOW_ORDER": 1,
-                    "PERIOD": "Always",
-                    "PERIOD_DESCRIPTION": "Always",
-                    "TIMEOUT": 40,
-                    "ACTIVE": "Y",
-                    "NAME": ASTERISK_SIP_ID,
-                    "REDIRECT_NUMBER": ASTERISK_SIP_ID,
-                }
-            ],
-        },
-    }
-    
-    try:
-        response = requests.post(
-            "https://api.mtt.ru/ipcr/",
-            json=data,
-            auth=(MTT_USERNAME, MTT_PASSWORD),
-            timeout=10
-        )
-        response.raise_for_status()
+    def find_element(self, text=None, resource_id=None, class_name=None, index=0):
+        """
+        Ищет элемент в XML дампе.
+        Возвращает словарь {x, y, bounds} или None.
+        """
+        xml = self.get_ui_dump()
+        if not xml:
+            return None
+
+        # Формируем паттерн поиска
+        # Пример: <node index="0" text="AGREE" resource-id="id" ... bounds="[0,0][100,100]" />
         
-        result = response.json()
-        print(f"✓ Звонки с {mtt_phone} перенаправлены на {ASTERISK_SIP_ID}")
-        print(f"📋 Ответ MTT API: {result}")
+        # Простой парсинг регулярками (быстрее lxml для простых задач)
+        # Ищем все ноды
+        nodes = re.findall(r'<node [^>]*>', xml)
         
-        return result
-    
-    except requests.exceptions.RequestException as e:
-        print(f"✗ Ошибка MTT API: {e}")
+        matches = []
+        for node in nodes:
+            # Проверяем условия
+            if text and text.lower() not in node.lower():
+                continue
+            if resource_id and resource_id not in node:
+                continue
+            if class_name and class_name not in node:
+                continue
+            
+            # Если совпало, достаем координаты
+            bounds_match = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+            if bounds_match:
+                x1, y1, x2, y2 = map(int, bounds_match.groups())
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                matches.append({'x': center_x, 'y': center_y, 'raw': node})
+
+        if len(matches) > index:
+            return matches[index]
         return None
 
+    def click_element(self, text=None, resource_id=None, timeout=10):
+        """Ждет элемент и кликает по нему"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            el = self.find_element(text=text, resource_id=resource_id)
+            if el:
+                print(f"✓ Клик по '{text or resource_id}' ({el['x']}, {el['y']})")
+                self.tap(el['x'], el['y'])
+                return True
+            time.sleep(1)
+        print(f"⚠️ Элемент '{text or resource_id}' не найден за {timeout} сек")
+        return False
 
-def wait_for_voice_call_code(phone_number: str, timeout: int = 120):
-    """Ждать звонок от WhatsApp и получить код верификации"""
-    print(f"\n📞 Ожидаю звонок от WhatsApp на {phone_number}...")
-    print(f"⏳ Таймаут: {timeout} секунд")
+    def wait_for_element(self, text=None, resource_id=None, class_name=None, timeout=20):
+        """Ждет появления элемента"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            el = self.find_element(text=text, resource_id=resource_id, class_name=class_name)
+            if el:
+                return True
+            time.sleep(1)
+        return False
+
+# ==========================================
+# ЛОГИКА WHATSAPP
+# ==========================================
+
+def setup_proxydroid(adb: ADBController):
+    """Настройка ProxyDroid (Без Appium!)"""
+    print("\n🌍 Настраиваю ProxyDroid...")
     
-    # Формируем номер (без +)
+    # 1. Заливаем конфиг
+    local_conf = "proxydroid_prefs.xml"
+    if os.path.exists(local_conf):
+        print("📂 Загружаю конфиг...")
+        adb.run_shell("am force-stop org.proxydroid")
+        subprocess.run([ADB_PATH, "-s", adb.device_name, "push", local_conf, "/data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml"], capture_output=True)
+        adb.run_shell("chmod 777 /data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml")
+    
+    # 2. Запускаем сервис
+    adb.run_shell("am startservice -n org.proxydroid/.ProxyDroidService")
+    adb.run_shell("am broadcast -a org.proxydroid.intent.action.START")
+    time.sleep(2)
+    
+    # 3. Обработка диалогов (Хорошо -> Grant)
+    print("🕵️ Проверяю диалоги прав...")
+    
+    # Кнопка "Хорошо" / "OK" в первом диалоге
+    if adb.click_element(text="Хорошо", timeout=5) or adb.click_element(text="OK", timeout=1):
+        time.sleep(1)
+    
+    # Кнопка "Grant" / "Разрешить" (Root)
+    # Ищем по разным словам
+    for txt in ["Grant", "Allow", "Разрешить", "Предоставить"]:
+        if adb.click_element(text=txt, timeout=2):
+            break
+
+    print("✓ ProxyDroid настроен (надеюсь)")
+
+def register_whatsapp(adb: ADBController, phone_number: str):
+    """Регистрация WhatsApp на чистом ADB"""
+    print(f"\n📱 Начинаю регистрацию номера {phone_number}...")
+    
+    # 1. Запуск WhatsApp
+    adb.run_shell("am start -n com.whatsapp/.Main")
+    time.sleep(3)
+    
+    # 2. Кнопка "Принять и продолжить"
+    print("⏳ Ищу кнопку согласия...")
+    if not adb.click_element(resource_id="com.whatsapp:id/eula_accept", timeout=10):
+        # Фолбэк по тексту
+        if not adb.click_element(text="AGREE", timeout=2):
+             print("⚠️ Кнопка согласия не найдена! Пробую тапнуть в низ экрана.")
+             adb.tap(360, 1150) # Примерно низ экрана 720x1280
+    
+    # 3. Ввод номера
+    print("⏳ Ввожу номер...")
+    if not adb.wait_for_element(class_name="android.widget.EditText", timeout=10):
+        print("❌ Поля ввода не найдены")
+        return False
+    
+    # Находим поля. Обычно [0] - код страны, [1] - телефон
+    # Но find_element возвращает одно. Нужно найти все.
+    # Для простоты используем логику:
+    # 1. Тапаем в левое поле (код)
+    # 2. Чистим
+    # 3. Пишем код
+    # 4. Тапаем в правое (телефон)
+    # 5. Пишем телефон
+    
+    # Получаем координаты полей через дамп
+    cc_field = adb.find_element(class_name="android.widget.EditText", index=0)
+    phone_field = adb.find_element(class_name="android.widget.EditText", index=1)
+    
+    if cc_field and phone_field:
+        # Вводим код страны (7)
+        print("   Ввожу код страны...")
+        adb.tap(cc_field['x'], cc_field['y'])
+        time.sleep(0.5)
+        # Очищаем (несколько раз Backspace)
+        for _ in range(5): adb.keyevent(67)
+        adb.text("7")
+        
+        # Вводим номер
+        print("   Ввожу телефон...")
+        adb.tap(phone_field['x'], phone_field['y'])
+        time.sleep(0.5)
+        phone_clean = phone_number.replace("+7", "").replace("7", "", 1) if phone_number.startswith("7") or phone_number.startswith("+7") else phone_number
+        adb.text(phone_clean)
+        time.sleep(1)
+    else:
+        print("❌ Не удалось найти координаты полей ввода")
+        return False
+
+    # 4. Жмем NEXT
+    print("⏳ Жму 'Next'...")
+    if not adb.click_element(text="Next", timeout=5):
+        adb.click_element(text="Далее", timeout=1)
+        # Фолбэк по ID
+        adb.click_element(resource_id="com.whatsapp:id/registration_submit", timeout=1)
+    
+    # 5. Обработка "Connecting..." и "Yes"
+    print("⏳ Жду 'Connecting' и подтверждение...")
+    # Ждем пока Connecting уйдет (просто ждем кнопку Yes/Switch)
+    # Ищем кнопку "Yes" / "OK" / "Да" в диалоге подтверждения
+    confirmed = False
+    for _ in range(20):
+        if adb.click_element(text="Yes", timeout=1) or \
+           adb.click_element(text="Да", timeout=0.5) or \
+           adb.click_element(text="OK", timeout=0.5) or \
+           adb.click_element(resource_id="android:id/button1", timeout=0.5):
+            confirmed = True
+            print("✓ Подтвердил номер")
+            break
+        time.sleep(1)
+        
+    if not confirmed:
+        print("⚠️ Не удалось подтвердить номер (диалог не появился или пропущен)")
+
+    # 6. Verify another way
+    print("⏳ Ищу 'Verify another way'...")
+    time.sleep(2) # Даем время анимации
+    
+    # Сначала проверим, не просит ли он доступ к SMS (иногда бывает)
+    adb.click_element(text="Not now", timeout=1)
+    adb.click_element(text="Не сейчас", timeout=0.5)
+
+    if adb.click_element(text="Verify another way", timeout=10) or \
+       adb.click_element(text="другим способом", timeout=1):
+        print("✓ Выбрал другой способ")
+        time.sleep(1)
+        
+        # 7. Выбираем Call Me
+        print("⏳ Выбираем 'Call Me'...")
+        if adb.click_element(text="Call me", timeout=5) or \
+           adb.click_element(text="Позвонить", timeout=1) or \
+           adb.click_element(text="Аудиозвонок", timeout=1):
+            print("✓ Запрошен звонок")
+        else:
+            print("⚠️ Кнопка звонка не найдена (возможно, таймер?)")
+    else:
+        print("⚠️ Кнопка 'Verify another way' не найдена (возможно, сразу перешло к коду)")
+
+    # 8. Ждем звонка
+    print("\n📞 Ожидание звонка и ввод кода...")
+    # Тут вызываем API ожидания звонка
+    call_result = wait_for_voice_call_code(phone_number)
+    
+    if call_result and call_result.get('status') == 'success':
+        code = str(call_result.get('code'))
+        print(f"✅ Код получен: {code}")
+        
+        # Ввод кода
+        # Обычно фокус уже стоит, но лучше найти поле
+        # Поле ввода кода часто разбито на 6 полей или одно скрытое
+        # Пробуем просто ввести текст
+        adb.text(code)
+        print("⌨️ Код введен")
+        return True
+    else:
+        print("❌ Звонок не прошел")
+        return False
+
+def wait_for_voice_call_code(phone_number: str, timeout=120):
+    """API запрос (копия из старого скрипта)"""
+    print(f"⏳ Жду звонок на {phone_number} ({timeout} сек)...")
     phone = phone_number.lstrip('+')
-    
     try:
         response = requests.post(
             "http://92.51.23.204:8000/api/wait-call",
-            json={
-                "phone_number": phone,
-                "timeout": timeout
-            },
-            timeout=timeout + 10  # Даём запасное время для HTTP таймаута
+            json={"phone_number": phone, "timeout": timeout},
+            timeout=timeout + 10
         )
         response.raise_for_status()
-        
-        result = response.json()
-        print(f"\n✅ Получен ответ от wait-call API:")
-        print(f"📋 {result}")
-        
-        return result
-    
-    except requests.exceptions.RequestException as e:
-        print(f"\n✗ Ошибка wait-call API: {e}")
+        return response.json()
+    except Exception as e:
+        print(f"✗ Ошибка API: {e}")
         return None
 
-
-def click_next_button(driver, device_name: str, phone_number: str):
-    """Кликнуть по кнопке 'Далее' используя Appium"""
-    try:
-        print("⏳ Нажимаю Next через Appium...")
-        
-        # Ждём загрузки экрана
-        print("   Жду загрузки экрана (3 сек)...")
-        time.sleep(3)
-        
-        # Попытка 1: Ищем кнопку "Next" по тексту
-        print("   Ищу кнопку 'Next'...")
-        try:
-            next_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Next").clickable(true)')
-            next_btn.click()
-            print("✓ Нажата кнопка 'Next'")
-            time.sleep(2)
-        except:
-            print("   Кнопка 'Next' не найдена, попытка 2...")
-            # Попытка 2: По ID
-            try:
-                next_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/registration_submit").clickable(true)')
-                next_btn.click()
-                print("✓ Нажата кнопка по ID")
-                time.sleep(2)
-            except Exception as e:
-                print(f"   Кнопка не найдена: {e}")
-                print("   Пропускаю...")
-        
-        # Ждём экрана с "Connecting" и появления диалога Yes/Да (polling до 20 сек)
-        print("\n⏳ Жду 'Connecting...' и диалог подтверждения (до 20 сек)...")
-        yes_clicked = False
-        for i in range(40):  # 40 * 0.5s = 20s
-            source = driver.page_source
-            if "Connecting" in source:
-                if i % 6 == 0 and i > 0:
-                    print("  ⏳ Всё ещё 'Connecting...'")
-            # Пытаемся найти и кликнуть Yes/Да
-            yes_btn = None
-            yes_selectors = [
-                'new UiSelector().text("Yes").clickable(true)',
-                'new UiSelector().text("Да").clickable(true)',
-                'new UiSelector().textContains("Yes").clickable(true)',
-                'new UiSelector().textContains("Да").clickable(true)',
-                'new UiSelector().resourceId("android:id/button1").clickable(true)',
-            ]
-            for sel in yes_selectors:
-                try:
-                    yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                    print(f"✓ Найдена кнопка по селектору: {sel}")
-                    break
-                except Exception:
-                    continue
-            if yes_btn:
-                yes_btn.click()
-                yes_clicked = True
-                print("✓ Нажата кнопка подтверждения")
-                time.sleep(3)
-                break
-            time.sleep(0.5)
-        if not yes_clicked:
-            print("⚠️  Кнопка 'Yes'/'Да' не найдена за 20 сек")
-            try:
-                with open("yes_wait_screen.xml", "w", encoding="utf-8") as f:
-                    f.write(source)
-                print("✓ Сохранил yes_wait_screen.xml для анализа")
-            except Exception:
-                pass
-        
-        # Ждём экрана с кнопкой "Verify another way"
-        print("\n⏳ Жду экрана с разрешениями (макс 10 сек)...")
-        time.sleep(2)
-        
-        # Ищем и кликаем "Verify another way"
-        print("⏳ Ищу кнопку 'Verify another way'...")
-        verify_btn = None
-        verify_selectors = [
-            'new UiSelector().text("Verify another way").clickable(true)',
-            'new UiSelector().text("Подтвердить другим способом").clickable(true)',
-            'new UiSelector().textContains("Verify").clickable(true)',
-            'new UiSelector().textContains("другим способом").clickable(true)',
-            'new UiSelector().resourceId("com.whatsapp:id/secondary_button").clickable(true)',
-        ]
-        for sel in verify_selectors:
-            try:
-                verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                print(f"✓ Найдена кнопка по селектору: {sel}")
-                break
-            except Exception:
-                continue
-        if verify_btn:
-            verify_btn.click()
-            print("✓ Нажата кнопка 'Verify another way'")
-            time.sleep(3)
-        else:
-            print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
-        
-        # Выбираем "Аудиозвонок" по индексам name/checkbox и жмём через MEmu adb
-        print("\n⏳ Ищу 'Аудиозвонок' и тапаю по чекбоксу (adb)...")
-        try:
-            names = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_name")')
-            boxes = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")')
-            target_idx = None
-            for idx, el in enumerate(names):
-                try:
-                    txt = el.text
-                except Exception:
-                    txt = ""
-                print(f"[{idx}] reg_method_name='{txt}'")
-                if txt.strip() == "Аудиозвонок":
-                    target_idx = idx
-            if target_idx is not None and target_idx < len(boxes):
-                rect = boxes[target_idx].rect
-                tap_x = rect["x"] + rect["width"] // 2
-                tap_y = rect["y"] + rect["height"] // 2
-                adb_cmd = os.getenv("ADB_PATH") or r"C:\Program Files\Microvirt\MEmu\adb.exe"
-                subprocess.run([adb_cmd, "-s", device_name, "shell", "input", "tap", str(tap_x), str(tap_y)], check=True)
-                print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y}) через {adb_cmd}")
-                time.sleep(3)  # даём время зафиксировать выбор перед Continue
-            else:
-                print("⚠️ 'Аудиозвонок' не найден среди reg_method_name")
-        except Exception as e:
-            print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
-        
-        # Нажимаем CONTINUE
-        print("\n⏳ Ищу кнопку 'CONTINUE' / 'Продолжить'...")
-        cont_btn = None
-        cont_selectors = [
-            'new UiSelector().resourceId("com.whatsapp:id/continue_button").clickable(true)',
-            'new UiSelector().text("ПРОДОЛЖИТЬ").clickable(true)',
-            'new UiSelector().text("Продолжить").clickable(true)',
-            'new UiSelector().text("CONTINUE").clickable(true)',
-            'new UiSelector().textContains("CONTINUE").clickable(true)',
-            'new UiSelector().textContains("родолж").clickable(true)',
-        ]
-        for sel in cont_selectors:
-            try:
-                cont_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                print(f"✓ Найдена кнопка по селектору: {sel}")
-                break
-            except Exception:
-                continue
-        if cont_btn:
-            cont_btn.click()
-            print("✓ Нажата кнопка 'CONTINUE/Продолжить'")
-            time.sleep(3)
-        else:
-            print("⚠️  Кнопка 'CONTINUE/Продолжить' не найдена")
-        
-        # Ждём код верификации
-        print("\n⏳ Ожидаю звонок и код верификации...")
-        call_result = wait_for_voice_call_code(phone_number, timeout=120)
-        
-        if call_result and call_result.get('status') == 'success':
-            code = call_result.get('code')
-            print(f"\n✅ Звонок получен! Код: {code}")
-            
-            # Вводим код через Appium
-            print(f"\n⌨️  Ввожу код {code}...")
-            time.sleep(2)
-            
-            try:
-                code_input = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/verify_sms_code_input")')
-                code_input.send_keys(code)
-                print(f"✅ Код {code} введён")
-                time.sleep(3)
-            except:
-                print("⚠️  Поле ввода кода не найдено")
-            
-            print("\n🎉 Регистрация завершена!")
-        else:
-            print("\n⚠️ Не удалось получить звонок")
-        
-        return True
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f"✗ Ошибка в click_next_button: {error_msg}")
-        return False
-
-
-def get_page_source(driver):
-    """Получить исходный код страницы"""
-    return driver.page_source
-
-
-def print_page_dump(driver):
-    """Вывести информацию о всех элементах на странице"""
-    try:
-        source = driver.page_source
-        # Сохранить в файл для анализа
-        with open("page_source.xml", "w") as f:
-            f.write(source)
-        print("\n✓ Page source сохранен в page_source.xml")
-        print(f"✓ Размер: {len(source)} символов")
-        
-        # Вывести первые элементы с текстом
-        import re
-        texts = re.findall(r'text="([^"]+)"', source)
-        buttons = re.findall(r'resource-id="([^"]*button[^"]*)"', source, re.IGNORECASE)
-        print(f"\n✓ Найдено текстов: {len(set(texts))}")
-        print(f"✓ Примеры текстов: {set(texts)}")
-        print(f"\n✓ Найдено кнопок: {buttons}")
-    except Exception as e:
-        print(f"Ошибка при получении page source: {e}")
-
+# ==========================================
+# MAIN
+# ==========================================
 
 def main():
     phone_number = "79683093884"
-    avd_name = "Pixel_4_API_26"
-    port = 5554
-    device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
-    max_retries = 3
-    attempt = 0
-    success = False
-    emulator_recreated = False  # Флаг: пересоздан ли эмулятор
     
-    # Проверяем нужно ли показывать GUI (для дебага)
-    show_gui = os.getenv("SHOW_GUI", "false").lower() in ["true", "1", "yes"]
-    if show_gui:
-        print("🖥️  GUI режим включен (SHOW_GUI=true)")
+    # 1. Определяем девайс (MEmu)
+    print("🔍 Ищем MEmu девайс...")
+    res = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
     
-    if USE_MEMU:
-        print(f"📱 Режим MEMU активирован, используется: {MEMU_DEVICE}")
-        max_retries = 1  # Для MEMU достаточно одной попытки
-    
-    while attempt < max_retries:
-        attempt += 1
-        print(f"\n{'=' * 70}")
-        print(f"ПОПЫТКА {attempt}/{max_retries}")
-        print(f"{'=' * 70}")
-        
-        try:
-            # 1. Запустить эмулятор
-            device_name = start_emulator(avd_name, port=port, show_gui=show_gui)
-            
-            # 2. Сбросить данные WhatsApp (вместо переустановки)
-            print("🔄 Сбрасываю данные WhatsApp...")
-            subprocess.run([ADB_PATH, "-s", device_name, "shell", "pm", "clear", "com.whatsapp"], capture_output=True)
-            print("✓ Данные сброшены")
-            
-            # 4. Подключиться через Appium (к Settings, без запуска WA)
-            # Примечание: connect_appium уже поправлен на com.android.settings
-            driver = connect_appium(device_name)
-            
-            # 4.1 Дожимаем настройку ProxyDroid (права)
-            setup_proxydroid(driver, device_name)
-            
-            # 4.2 Запустить WhatsApp через драйвер
-            print("📱 Запускаю WhatsApp...")
-            driver.activate_app("com.whatsapp")
-            time.sleep(5)
-            
-            # 5. Кликнуть "Согласиться"
-            click_agree_button(driver)
-            
-            # 6. Ввести номер телефона
-            enter_phone_number(driver, phone_number)
-            
-            # 7. Настроить перенаправление звонков на SIP
-            redirect_calls_to_sip(phone_number)
-            
-            # 8. Нажать "Далее" и пройти регистрацию через Appium
-            click_next_button(driver, device_name, phone_number)
-            
-            # Если добрались сюда - успех!
-            success = True
-            break
-            
-        except Exception as e:
-            error_msg = str(e)
-            print(f"\n❌ Ошибка на попытке {attempt}: {error_msg}")
-            
-            # Для MEMU не пересоздаём, просто выходим
-            if USE_MEMU:
-                print("❌ MEMU требует ручного перезапуска. Завершаю.")
-                break
-            
-            # Проверяем была ли это блокировка от WhatsApp ИЛИ эмулятор не поднялся
-            if "WhatsApp blocked login" in error_msg or "Emulator failed to start" in error_msg:
-                if "WhatsApp blocked login" in error_msg:
-                    print("🔄 Обнаружена блокировка WhatsApp. Пересоздаю эмулятор и выхожу...")
-                    
-                    # Убиваем текущий эмулятор
-                    print(f"\n🔪 Убиваю эмулятор на порту {port}...")
-                    subprocess.run(
-                        [ADB_PATH, "-s", device_name, "emu", "kill"],
-                        capture_output=True,
-                        timeout=10
-                    )
-                    time.sleep(2)
-                    
-                    # Убиваем процесс если еще жив
-                    subprocess.run(
-                        ["pkill", "-f", f"emulator.*-port {port}"],
-                        capture_output=True
-                    )
-                    time.sleep(2)
-                    
-                    # Запускаем пересоздание эмулятора
-                    print(f"🏗️  Пересоздаю эмулятор с нуля...")
-                    
-                    # Получаем абсолютный путь к скрипту пересоздания
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    recreate_script = os.path.join(script_dir, "recreate_emulator.py")
-                    
-                    if not os.path.exists(recreate_script):
-                        print(f"❌ Скрипт пересоздания не найден: {recreate_script}")
-                        break
-                    
-                    print(f"   Вызываю: {sys.executable} {recreate_script}")
-                    recreate_cmd = [
-                        sys.executable,
-                        recreate_script,
-                        str(port),
-                        avd_name
-                    ]
-                    
-                    result = subprocess.run(recreate_cmd, cwd=script_dir)
-                    print(f"   Результат: return code = {result.returncode}")
-                    
-                    if result.returncode == 0:
-                        print(f"✅ Эмулятор пересоздан. Выхожу.")
-                    else:
-                        print(f"❌ Не удалось пересоздать эмулятор (exit code: {result.returncode})")
-                    break
-                    
-                elif "Emulator failed to start" in error_msg:
-                    print("🔄 Эмулятор не поднялся. Пересоздаю эмулятор...")
-                    
-                    # Пересоздаем ТОЛЬКО ОДИН РАЗ
-                    if not emulator_recreated and attempt < max_retries:
-                        # Убиваем текущий эмулятор
-                        print(f"\n🔪 Убиваю эмулятор на порту {port}...")
-                        subprocess.run(
-                            [ADB_PATH, "-s", device_name, "emu", "kill"],
-                            capture_output=True,
-                            timeout=10
-                        )
-                        time.sleep(2)
-                        
-                        # Убиваем процесс если еще жив
-                        subprocess.run(
-                            ["pkill", "-f", f"emulator.*-port {port}"],
-                            capture_output=True
-                        )
-                        time.sleep(2)
-                        
-                        # Запускаем пересоздание эмулятора
-                        print(f"🏗️  Пересоздаю эмулятор с нуля...")
-                        
-                        # Получаем абсолютный путь к скрипту пересоздания
-                        script_dir = os.path.dirname(os.path.abspath(__file__))
-                        recreate_script = os.path.join(script_dir, "recreate_emulator.py")
-                        
-                        if not os.path.exists(recreate_script):
-                            print(f"❌ Скрипт пересоздания не найден: {recreate_script}")
-                            break
-                        
-                        print(f"   Вызываю: {sys.executable} {recreate_script}")
-                        recreate_cmd = [
-                            sys.executable,
-                            recreate_script,
-                            str(port),
-                            avd_name
-                        ]
-                        
-                        result = subprocess.run(recreate_cmd, cwd=script_dir)
-                        print(f"   Результат: return code = {result.returncode}")
-                        
-                        if result.returncode == 0:
-                            print(f"✅ Эмулятор пересоздан, переходу на следующую попытку...")
-                            emulator_recreated = True  # Отмечаем что пересоздали
-                            time.sleep(3)
-                            continue
-                        else:
-                            print(f"❌ Не удалось пересоздать эмулятор (exit code: {result.returncode})")
-                            break
-                    else:
-                        # Либо уже пересоздали, либо нет больше попыток
-                        if emulator_recreated:
-                            print(f"❌ Эмулятор уже был пересоздан, но блокировка осталась. Завершаю.")
-                        else:
-                            print(f"❌ Исчерпаны все попытки ({max_retries})")
-                        break
-            else:
-                # Для других ошибок - просто выходим
-                print(f"✗ Критическая ошибка (не блокировка): {error_msg}")
-                break
-    
-    # Финальный вывод
-    print(f"\n{'=' * 70}")
-    if success:
-        print("✅ УСПЕШНО! Регистрация завершена!")
+    device_name = None
+    # Ищем 127.0.0.1:2xxxx
+    match = re.search(r"(127\.0\.0\.1:2\d{4})\s+device", res.stdout)
+    if match:
+        device_name = match.group(1)
+        print(f"✓ Найден девайс: {device_name}")
     else:
-        print("❌ РЕГИСТРАЦИЯ НЕ УДАЛАСЬ")
-    print(f"{'=' * 70}")
-    
-    return success
+        # Дефолт для первого инстанса
+        device_name = "127.0.0.1:21503"
+        print(f"⚠️ Девайс не найден в списке, пробую дефолт: {device_name}")
+        # Пытаемся подключиться
+        subprocess.run([ADB_PATH, "connect", device_name], capture_output=True)
 
+    # Инициализация контроллера
+    adb = ADBController(device_name)
+    
+    # 2. Очистка и подготовка
+    print("🧹 Очистка...")
+    adb.run_shell("pm clear com.whatsapp")
+    
+    # 3. Настройка прокси
+    setup_proxydroid(adb)
+    
+    # 4. Регистрация
+    register_whatsapp(adb, phone_number)
+    
+    print("\n🏁 Скрипт завершен")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n🛑 Выполнение прервано пользователем (Ctrl+C)")
+        print("\n🛑 Прервано пользователем")
         try:
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-
