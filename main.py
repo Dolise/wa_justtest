@@ -179,43 +179,94 @@ def install_accessibility_service(device_name: str):
 
 
 def setup_proxydroid(driver, device_name):
-    """Настройка ProxyDroid: Запуск через ADB команды"""
-    print("\n🌍 Включаю ProxyDroid через сервис (ADB)...")
+    """Настройка ProxyDroid: Загрузка конфига и запуск"""
+    print("\n🌍 Настраиваю ProxyDroid...")
+    import re
     
     try:
+        # 0. Заливаем конфиг (важно, чтобы обновить Bypass List)
+        local_conf = "proxydroid_prefs.xml"
+        if os.path.exists(local_conf):
+            print("📂 Загружаю конфиг с Bypass List...")
+            # Останавливаем перед заменой конфига
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "am", "force-stop", "org.proxydroid"], capture_output=True, timeout=5)
+            
+            target_path = "/data/data/org.proxydroid/shared_prefs/org.proxydroid_preferences.xml"
+            subprocess.run([ADB_PATH, "-s", device_name, "push", local_conf, target_path], check=True, timeout=5)
+            # Права 777, чтобы приложение могло читать
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "chmod", "777", target_path], timeout=5)
+            print("✓ Конфиг обновлен")
+        
         # 1. Пытаемся запустить сервис напрямую (минуя UI)
-        # Это работает на многих версиях ProxyDroid
         cmd_service = [ADB_PATH, "-s", device_name, "shell", "am", "startservice", "-n", "org.proxydroid/.ProxyDroidService"]
-        subprocess.run(cmd_service, capture_output=True)
+        subprocess.run(cmd_service, capture_output=True, timeout=10)
         
-        # 2. На всякий случай шлем броадкаст (для версий с поддержкой интентов)
+        # 2. На всякий случай шлем броадкаст
         cmd_broadcast = [ADB_PATH, "-s", device_name, "shell", "am", "broadcast", "-a", "org.proxydroid.intent.action.START"]
-        subprocess.run(cmd_broadcast, capture_output=True)
-        
+        subprocess.run(cmd_broadcast, capture_output=True, timeout=10)
         print("✓ Команды запуска отправлены")
-        time.sleep(3)
-        
-    # 3.1 Попытка выдать права через AppOps (работает на некоторых Android)
-        print("🔧 Пытаюсь выдать Root права через AppOps...")
-        subprocess.run([ADB_PATH, "-s", device_name, "shell", "appops", "set", "org.proxydroid", "SU", "allow"], capture_output=True)
-        # Иногда сервис называется COARSE_LOCATION и т.д., но для SU бывает свой опкод
-        
-        # 3.2 Умный поиск кнопки Grant через uiautomator dump (если Appium слеп)
-        # Это работает даже если Appium не видит системное окно
+        time.sleep(2)
+
+        # 3. ОБРАБОТКА ДИАЛОГА "СНАЧАЛА ПОЛУЧИТЕ ПРАВА" (Хорошо/OK)
+        # Этот диалог блокирует запрос рут прав, если его не закрыть
+        print("🕵️ Проверяю диалог 'Хорошо/OK'...")
         try:
-             print("🕵️ Ищу окно SuperUser через uiautomator...")
-             # Дамп
-             dump_path = "/data/local/tmp/dump.xml"
-             local_dump = "window_dump.xml"
-             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True)
-             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True)
+            # Сначала пробуем Appium
+            ok_selectors = [
+                'new UiSelector().text("Хорошо")',
+                'new UiSelector().text("OK")',
+                'new UiSelector().text("Ok")',
+                'new UiSelector().resourceId("android:id/button1")',
+                'new UiSelector().className("android.widget.Button").textContains("OK")',
+                'new UiSelector().className("android.widget.Button").textContains("Хорошо")',
+            ]
+            for sel in ok_selectors:
+                try:
+                    btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                    btn.click()
+                    print(f"✓ Нажато '{sel}' (Appium)")
+                    time.sleep(1)
+                    break
+                except: pass
+        except: pass
+
+        # Фолбэк через uiautomator dump для 'Хорошо'
+        try:
+             dump_path = "/data/local/tmp/dump_ok.xml"
+             local_dump = "window_dump_ok.xml"
+             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True, timeout=15)
+             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True, timeout=5)
              
              if os.path.exists(local_dump):
                  with open(local_dump, "r", encoding="utf-8", errors="ignore") as f:
                      content = f.read()
-                     # Ищем координаты кнопки Grant/Разрешить/Allow
-                     # Паттерн: text="Grant" ... bounds="[x1,y1][x2,y2]"
-                     import re
+                     # Ищем OK/Хорошо
+                     match = re.search(r'text="([^"]*(?:OK|Хорошо)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', content, re.IGNORECASE)
+                     if match:
+                         text = match.group(1)
+                         x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
+                         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                         print(f"✓ Найдена кнопка '{text}' в дампе! Жму ({cx}, {cy})")
+                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(cx), str(cy)], check=True, timeout=5)
+                         time.sleep(2)
+        except Exception as e:
+             print(f"⚠️ Ошибка поиска OK в дампе: {e}")
+
+        # 4. Попытка выдать права через AppOps (работает на некоторых Android)
+        print("🔧 Пытаюсь выдать Root права через AppOps...")
+        subprocess.run([ADB_PATH, "-s", device_name, "shell", "appops", "set", "org.proxydroid", "SU", "allow"], capture_output=True, timeout=5)
+        
+        # 5. Умный поиск кнопки Grant через uiautomator dump
+        try:
+             print("🕵️ Ищу окно SuperUser через uiautomator...")
+             dump_path = "/data/local/tmp/dump.xml"
+             local_dump = "window_dump.xml"
+             subprocess.run([ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", dump_path], capture_output=True, timeout=15)
+             subprocess.run([ADB_PATH, "-s", device_name, "pull", dump_path, local_dump], capture_output=True, timeout=5)
+             
+             if os.path.exists(local_dump):
+                 with open(local_dump, "r", encoding="utf-8", errors="ignore") as f:
+                     content = f.read()
                      # Ищем слова
                      match = re.search(r'text="([^"]*(?:Grant|Allow|Разрешить)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', content, re.IGNORECASE)
                      if match:
@@ -224,15 +275,14 @@ def setup_proxydroid(driver, device_name):
                          center_x = (x1 + x2) // 2
                          center_y = (y1 + y2) // 2
                          print(f"✓ Найдена кнопка '{text}' в дампе! Жму ({center_x}, {center_y})")
-                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(center_x), str(center_y)], check=True)
+                         subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(center_x), str(center_y)], check=True, timeout=5)
                          time.sleep(2)
                      else:
                          print("⚠️ Кнопка Grant не найдена в дампе uiautomator")
         except Exception as e:
-             print(f"⚠️ Ошибка умного поиска: {e}")
+             print(f"⚠️ Ошибка умного поиска Grant: {e}")
 
-        # 3. Проверка: Если вылезло окно Root прав - надо нажать Grant
-        # (Это всё равно нужно, если приложение запускается первый раз)
+        # 6. Проверка: Если вылезло окно Root прав - надо нажать Grant через Appium
         try:
              grant_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Grant").clickable(true)')
              grant_btn.click()
@@ -316,6 +366,7 @@ def connect_appium(device_name: str, appium_port: int = 4723):
     max_retries = 3
     for retry in range(max_retries):
         try:
+            print(f"🔌 Подключаюсь к Appium (http://localhost:{appium_port})...")
             driver = webdriver.Remote(f"http://localhost:{appium_port}", caps)
             print(f"✓ Appium подключен к {device_name}")
             return driver
@@ -929,5 +980,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n🛑 Выполнение прервано пользователем (Ctrl+C)")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
 

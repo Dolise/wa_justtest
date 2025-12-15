@@ -8,4 +8,5 @@
     <boolean name="isAuth" value="true" />
     <string name="password">nskjfdbnker4G</string>
     <boolean name="isAutoConnect" value="true" />
+    <string name="bypassAddrs">127.0.0.1,localhost,::1,10.0.2.2</string>
 </map>
