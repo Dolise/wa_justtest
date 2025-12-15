@@ -246,7 +246,7 @@ def register_whatsapp(adb: ADBController, phone_number: str):
         print("⚠️ Не удалось подтвердить номер (диалог не появился или пропущен)")
 
     # 5.1 Настраиваем переадресацию (пока WA думает)
-    redirect_calls_to_sip(phone_number)
+    # redirect_calls_to_sip(phone_number)
 
     # 6. Verify another way
     print("⏳ Ищу 'Verify another way'...")
@@ -280,56 +280,21 @@ def register_whatsapp(adb: ADBController, phone_number: str):
     else:
         print("⚠️ Кнопка 'Verify another way' не найдена (возможно, сразу перешло к коду)")
 
-    # 8. Ждем звонка ИЛИ кода на экране
-    print("\n📞 Ожидание звонка (API) или кода на экране...")
-    
-    # Флаг завершения
-    found_event = threading.Event()
-    found_code_container = {}
+    redirect_calls_to_sip(phone_number)
 
-    # Поток для API звонка
-    def wait_api_call():
-        res = wait_for_voice_call_code(phone_number)
-        if res and res.get('status') == 'success' and not found_event.is_set():
-            found_code_container['code'] = str(res.get('code'))
-            found_code_container['source'] = 'API_CALL'
-            found_event.set()
-
-    # Поток для сканирования экрана (SMS/Push)
-    def scan_screen_for_code():
-        start_time = time.time()
-        while time.time() - start_time < 120 and not found_event.is_set():
-            xml = adb.get_ui_dump()
-            if xml:
-                # Ищем 6 цифр в тексте типа "код подтверждения: 123-456" или "verification code"
-                # Упрощенно: ищем блок из 3 цифр-3 цифр или 6 цифр подряд
-                # WhatsApp обычно пишет "Code: 123-456"
-                match = re.search(r'(?:code|код).*?(\d{3}[\s-]?\d{3})', xml, re.IGNORECASE)
-                if match:
-                    code_raw = match.group(1).replace("-", "").replace(" ", "")
-                    if len(code_raw) == 6:
-                        found_code_container['code'] = code_raw
-                        found_code_container['source'] = 'SCREEN_SMS'
-                        found_event.set()
-                        break
-            time.sleep(2)
-
-    t1 = threading.Thread(target=wait_api_call)
-    t2 = threading.Thread(target=scan_screen_for_code)
+    # 8. Ждем звонка
+    print("\n📞 Ожидание звонка и ввод кода...")
+    # Тут вызываем API ожидания звонка
+    call_result = wait_for_voice_call_code(phone_number)
     
-    t1.start()
-    t2.start()
-    
-    # Ждем завершения любого из потоков (или таймаута)
-    # Макс 130 сек
-    found_event.wait(timeout=130)
-    
-    if found_code_container.get('code'):
-        code = found_code_container['code']
-        source = found_code_container['source']
-        print(f"✅ Код получен ({source}): {code}")
+    if call_result and call_result.get('status') == 'success':
+        code = str(call_result.get('code'))
+        print(f"✅ Код получен: {code}")
         
         # Ввод кода
+        # Обычно фокус уже стоит, но лучше найти поле
+        # Поле ввода кода часто разбито на 6 полей или одно скрытое
+        # Пробуем просто ввести текст
         adb.text(code)
         print("⌨️ Код введен")
         
@@ -358,15 +323,12 @@ def register_whatsapp(adb: ADBController, phone_number: str):
                 print("✓ Нажато 'Далее'")
                 
                 # 10. Финальное ожидание (Passkey / Email / Init)
-                print("\n⏳ Ожидание завершения настройки (Passkey/Email/Init)...")
+                print("\n⏳ Ожидание завершения настройки и ГЛАВНОГО ЭКРАНА...")
                 
                 # Поллим успешный вход (появление вкладок Чаты/Calls)
-                # попутно нажимая "Пропустить"/"Не сейчас"
                 success_reg = False
-                for _ in range(60): # 60 попыток по 1-1.5 сек ~ 90 сек макс
+                for _ in range(60): 
                     # 1. Проверка успеха
-                    # Ищем текст "Чаты" или "Chats" или "Звонки" или "Calls"
-                    # (Также можно искать кнопку "Начать чат" или "Отправить сообщение")
                     if adb.find_element(text="Чаты") or \
                        adb.find_element(text="Chats") or \
                        adb.find_element(text="Звонки") or \
@@ -375,7 +337,7 @@ def register_whatsapp(adb: ADBController, phone_number: str):
                         success_reg = True
                         break
                     
-                    # 2. Проверка помех (Passkey / Email / Backup)
+                    # 2. Проверка помех
                     if adb.click_element(text="Пропустить", timeout=0.5) or \
                        adb.click_element(text="Skip", timeout=0.5) or \
                        adb.click_element(text="Не сейчас", timeout=0.5) or \
@@ -385,10 +347,30 @@ def register_whatsapp(adb: ADBController, phone_number: str):
                          print("✓ Нажата кнопка пропуска")
                          time.sleep(1)
                          continue
-                         
                     time.sleep(1)
                 
                 if success_reg:
+                    # 11. ОЖИДАНИЕ КОДА ДЛЯ ТЕЛЕГРАМА (ВНУТРИ ЧАТОВ)
+                    print("\n📩 Жду входящее сообщение с кодом (120 сек)...")
+                    start_wait = time.time()
+                    tg_code = None
+                    
+                    while time.time() - start_wait < 120:
+                        xml = adb.get_ui_dump()
+                        if xml:
+                            # Ищем код в превью сообщений на главном экране
+                            # Обычно это 5 цифр для ТГ
+                            # Ищем "Login code: 12345" или просто "12345" в тексте сообщений
+                            match = re.search(r'(?:code|код|login)[:\s-]*(\d{5})', xml, re.IGNORECASE)
+                            if match:
+                                tg_code = match.group(1)
+                                print(f"\n🚀 НАЙДЕН КОД ТЕЛЕГРАМА: {tg_code}")
+                                break
+                        time.sleep(2)
+                    
+                    if not tg_code:
+                        print("⚠️ Код Телеграма не пришел за 120 сек")
+                    
                     return True
                 else:
                     print("⚠️ Не удалось детектировать главный экран за 90 сек")
@@ -481,7 +463,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79587395377"
+    phone_number = "79014776794"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
@@ -509,6 +491,9 @@ def main():
     
     # 3. Настройка прокси
     # setup_proxydroid(adb)
+    
+    # 3.1 Настройка переадресации звонков
+    redirect_calls_to_sip(phone_number)
     
     # 4. Регистрация
     register_whatsapp(adb, phone_number)
