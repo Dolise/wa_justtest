@@ -21,7 +21,7 @@ if not os.path.exists(ADB_PATH):
     ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
 
 # MEMU device ID (замени на свой если другой инстанс)
-MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21613")
+MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21503")
 USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
 
 
@@ -649,7 +649,7 @@ def print_page_dump(driver):
 
 
 def main():
-    phone_number = "79809789019"
+    phone_number = "79861298937"
     avd_name = "Pixel_4_API_26"
     port = 5554
     device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
