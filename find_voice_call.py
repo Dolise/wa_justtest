@@ -68,11 +68,8 @@ def main():
 
     try:
         ok_voice = try_find_voice_call(driver)
-        ok_continue = try_find_continue(driver)
         if not ok_voice:
             print("Voice call NOT clicked")
-        if not ok_continue:
-            print("Continue NOT clicked")
     finally:
         try:
             driver.quit()
