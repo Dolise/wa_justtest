@@ -66,9 +66,12 @@ def finish_reg(driver):
             print("✓ Имя 'Alex' введено")
             time.sleep(1)
             
-            # Скрываем клавиатуру, чтобы не мешала кнопке Next
+            # Вместо hide_keyboard пробуем нажать 'Back' один раз (скрывает клаву)
+            # или 'Enter'
             try:
-                driver.hide_keyboard()
+                # 66 = ENTER / Action Down
+                driver.press_keycode(66)
+                print("✓ Нажат Enter (код 66)")
             except: pass
             
         else:
