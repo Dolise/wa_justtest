@@ -245,6 +245,9 @@ def register_whatsapp(adb: ADBController, phone_number: str):
     if not confirmed:
         print("⚠️ Не удалось подтвердить номер (диалог не появился или пропущен)")
 
+    # 5.1 Настраиваем переадресацию (пока WA думает)
+    redirect_calls_to_sip(phone_number)
+
     # 6. Verify another way
     print("⏳ Ищу 'Verify another way'...")
     time.sleep(2) # Даем время анимации
@@ -297,6 +300,62 @@ def register_whatsapp(adb: ADBController, phone_number: str):
         print("❌ Звонок не прошел")
         return False
 
+# ==========================================
+# API МЕТОДЫ
+# ==========================================
+
+def redirect_calls_to_sip(phone_number: str):
+    """Перенаправить входящие звонки на SIP через MTT API"""
+    print(f"\n📞 Настраиваю перенаправление звонков для {phone_number}...")
+    
+    # MTT API параметры
+    MTT_USERNAME = "ip_ivanchin"
+    MTT_PASSWORD = "s13jgSxHpQ"
+    CLIENT_ID = "110028011"
+    ASTERISK_SIP_ID = "883140005582687"
+    
+    # Формируем номер для MTT (без +)
+    mtt_phone = phone_number.lstrip('+')
+    
+    data = {
+        "id": "1",
+        "jsonrpc": "2.0",
+        "method": "SetReserveStruct",
+        "params": {
+            "sip_id": mtt_phone,
+            "redirect_type": 1,
+            "masking": "N",
+            "controlCallStruct": [
+                {
+                    "I_FOLLOW_ORDER": 1,
+                    "PERIOD": "Always",
+                    "PERIOD_DESCRIPTION": "Always",
+                    "TIMEOUT": 40,
+                    "ACTIVE": "Y",
+                    "NAME": ASTERISK_SIP_ID,
+                    "REDIRECT_NUMBER": ASTERISK_SIP_ID,
+                }
+            ],
+        },
+    }
+    
+    try:
+        response = requests.post(
+            "https://api.mtt.ru/ipcr/",
+            json=data,
+            auth=(MTT_USERNAME, MTT_PASSWORD),
+            timeout=10
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        print(f"✓ Звонки с {mtt_phone} перенаправлены на {ASTERISK_SIP_ID}")
+        return result
+    
+    except requests.exceptions.RequestException as e:
+        print(f"✗ Ошибка MTT API: {e}")
+        return None
+
 def wait_for_voice_call_code(phone_number: str, timeout=120):
     """API запрос (копия из старого скрипта)"""
     print(f"⏳ Жду звонок на {phone_number} ({timeout} сек)...")
@@ -318,7 +377,7 @@ def wait_for_voice_call_code(phone_number: str, timeout=120):
 # ==========================================
 
 def main():
-    phone_number = "79847037081"
+    phone_number = "79820910433"
     
     # 1. Определяем девайс (MEmu)
     print("🔍 Ищем MEmu девайс...")
