@@ -552,8 +552,9 @@ def click_next_button(driver, device_name: str, phone_number: str):
             box = voice_checkbox.rect
             tap_x = box["x"] + box["width"] // 2
             tap_y = box["y"] + box["height"] // 2
-            driver.tap([(tap_x, tap_y)])
-            print(f"✓ Тап по 'Аудиозвонок' @ ({tap_x},{tap_y})")
+            # Жмём через adb, чтобы избежать закрытия шторки Appium-тачем
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(tap_x), str(tap_y)], capture_output=True)
+            print(f"✓ Тап по 'Аудиозвонок' через adb @ ({tap_x},{tap_y})")
             time.sleep(3)  # даём время зафиксировать выбор перед Continue
         except Exception as e:
             print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
