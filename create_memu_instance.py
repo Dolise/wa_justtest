@@ -51,12 +51,15 @@ def main():
     print("⚙️  Включаю DirectX и Root...")
     run_memuc(["setconfigex", "-i", str(index), "graphics_render_mode", "1"])
     run_memuc(["setconfigex", "-i", str(index), "is_root_mode", "1"])
+    run_memuc(["setconfigex", "-i", str(index), "root_mode", "1"])
 
-
-    # 5. Запускаем
+    # 5. Перезагрузка для применения настроек (Stop -> Start)
+    print(f"🔄 Перезапускаю инстанс {index} для применения Root...")
+    run_memuc(["stop", "-i", str(index)])
+    time.sleep(3)
     print(f"▶️  Запускаю инстанс {index}...")
     run_memuc(["start", "-i", str(index)])
-
+    
     # 6. Вычисляем ADB порт
     # Базовый порт 21503, шаг 10. Индекс 0 -> 21503, Индекс 1 -> 21513
     adb_port = 21503 + (index * 10)
