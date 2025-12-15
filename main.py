@@ -178,7 +178,7 @@ def setup_superproxy(driver):
     
     try:
         # Запускаем SuperProxy
-        driver.activate_app("com.schemeticulous.superproxy")
+        driver.activate_app("com.scheler.superproxy")
         time.sleep(5)
         
         # Данные прокси
@@ -187,14 +187,10 @@ def setup_superproxy(driver):
         PROXY_USER = "user-mtt33_A0xiF-region-ru"
         PROXY_PASS = "nskjfdbnker4G"
         
-        # 1. Удаляем старые профили (если есть) - опционально, но лучше для чистоты
-        # (Пропускаем для упрощения, считаем что свежий инстанс)
-        
-        # 2. Жмем "Add proxy" (кнопка + или текст Add)
-        # В SuperProxy обычно кнопка добавления внизу или в меню
-        # Ищем кнопку добавления (обычно FAB с id fab_add или text Add)
+        # 2. Жмем "Add proxy" (кнопка +)
+        # Ищем кнопку добавления (fab_add)
         try:
-            add_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/fab_add")
+            add_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/fab_add")
             add_btn.click()
             print("✓ Нажата кнопка 'Add Proxy'")
             time.sleep(2)
@@ -202,7 +198,7 @@ def setup_superproxy(driver):
             print("⚠️ Кнопка Add не найдена, возможно профиль уже создан. Пробую редактировать...")
             # Попробуем кликнуть по первому элементу в списке
             try:
-                first_item = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_list_item")
+                first_item = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_list_item")
                 first_item.click()
             except:
                 print("❌ Не удалось открыть создание/редактирование профиля")
@@ -211,15 +207,14 @@ def setup_superproxy(driver):
         # 3. Заполняем поля
         # Profile Name
         try:
-            name_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/profile_name")
+            name_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/profile_name")
             name_field.clear()
             name_field.send_keys("MyProxy")
         except: pass
 
         # Protocol (SOCKS5)
-        # Обычно там спиннер.
         try:
-            proto_spinner = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_type")
+            proto_spinner = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_type")
             proto_spinner.click()
             time.sleep(1)
             socks5_opt = driver.find_element(AppiumBy.XPATH, "//android.widget.CheckedTextView[@text='SOCKS5']")
@@ -228,56 +223,50 @@ def setup_superproxy(driver):
         except: pass
 
         # Host
-        host_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_host")
+        host_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_host")
         host_field.clear()
         host_field.send_keys(PROXY_HOST)
         
         # Port
-        port_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_port")
+        port_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_port")
         port_field.clear()
         port_field.send_keys(PROXY_PORT)
         
         # Auth
-        # Нужно включить Authentication (обычно чекбокс)
         try:
-            auth_check = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/auth_required")
+            auth_check = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/auth_required")
             if not auth_check.get_attribute("checked") == "true":
                 auth_check.click()
         except: pass
         
         # User
-        user_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_user")
+        user_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_user")
         user_field.clear()
         user_field.send_keys(PROXY_USER)
         
         # Pass
-        pass_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_pass")
+        pass_field = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/proxy_pass")
         pass_field.clear()
         pass_field.send_keys(PROXY_PASS)
         
         # Save (дискета сверху)
-        save_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_save")
+        save_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_save")
         save_btn.click()
         print("✓ Настройки прокси сохранены")
         time.sleep(2)
         
         # 4. Запускаем (Start)
-        # Обычно кнопка Start в списке или переключатель
-        # В SuperProxy нужно нажать на профиль -> Start, или выбрать и нажать Start
         try:
             # Ищем наш профиль и кнопку Start (обычно она появляется после выбора)
-            # Или просто жмём Start если это главный экран
-            start_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_start") # Если есть глобальная кнопка
+            start_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_start") # Если есть глобальная кнопка
             start_btn.click()
         except:
             # Если нет глобальной, пробуем кликнуть по профилю и там Start
             try:
-                # В SuperProxy часто надо нажать на элемент списка, чтобы он стал активным ("Selected")
-                # И потом нажать Start
                 item = driver.find_element(AppiumBy.XPATH, "//android.widget.TextView[@text='MyProxy']")
                 item.click()
                 time.sleep(1)
-                start_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_start")
+                start_btn = driver.find_element(AppiumBy.ID, "com.scheler.superproxy:id/action_start")
                 start_btn.click()
             except:
                 print("⚠️ Не удалось найти кнопку старт, возможно уже запущен")
@@ -791,7 +780,7 @@ def print_page_dump(driver):
 
 
 def main():
-    phone_number = "79339075729"
+    phone_number = "79815272860"
     avd_name = "Pixel_4_API_26"
     port = 5554
     device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
