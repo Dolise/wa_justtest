@@ -528,8 +528,8 @@ def click_next_button(driver, device_name: str, phone_number: str):
             try:
                 code_input = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/verify_sms_code_input")')
                 code_input.send_keys(code)
-            print(f"✅ Код {code} введён")
-            time.sleep(3)
+                print(f"✅ Код {code} введён")
+                time.sleep(3)
             except:
                 print("⚠️  Поле ввода кода не найдено")
             
