@@ -649,7 +649,7 @@ def print_page_dump(driver):
 
 
 def main():
-    phone_number = "79240317988"
+    phone_number = "79810826753"
     avd_name = "Pixel_4_API_26"
     port = 5554
     device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
