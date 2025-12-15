@@ -70,6 +70,15 @@ def main():
     else:
         print(f"⚠️  Файл {apk_proxy} не найден, пропуск установки прокси-клиента")
 
+    # 8. Устанавливаем WhatsApp
+    apk_wa = "whatsapp.apk"
+    if os.path.exists(apk_wa):
+        print(f"📱 Устанавливаю {apk_wa}...")
+        run_memuc(["installapp", "-i", str(index), os.path.abspath(apk_wa)])
+        print(f"✓ WhatsApp установлен")
+    else:
+        print(f"⚠️  Файл {apk_wa} не найден, пропуск установки WhatsApp")
+
     print("\n" + "="*40)
     print(f"✅ Готово! Новый девайс запущен.")
     print("="*40)

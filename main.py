@@ -20,8 +20,25 @@ if not os.path.exists(ADB_PATH):
 if not os.path.exists(ADB_PATH):
     ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
 
-# MEMU device ID (замени на свой если другой инстанс)
-MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21503")
+# MEMU device ID (автоопределение)
+MEMU_DEVICE = os.getenv("MEMU_DEVICE")
+if not MEMU_DEVICE:
+    try:
+        # Пробуем найти через adb devices
+        # ADB_PATH уже определен выше
+        res = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
+        # Ищем первый попавшийся 127.0.0.1:2xxxx
+        import re
+        match = re.search(r"(127\.0\.0\.1:2\d{4})\s+device", res.stdout)
+        if match:
+            MEMU_DEVICE = match.group(1)
+            print(f"✓ Автоматически найден MEmu девайс: {MEMU_DEVICE}")
+    except Exception:
+        pass
+
+if not MEMU_DEVICE:
+    MEMU_DEVICE = "127.0.0.1:21503"  # Дефолт (индекс 0)
+
 USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
 
 
@@ -802,17 +819,10 @@ def main():
             # 1. Запустить эмулятор
             device_name = start_emulator(avd_name, port=port, show_gui=show_gui)
             
-            # 2. Удалить старый WhatsApp и переустановить
-            print("\n🔄 Удаляю старый WhatsApp...")
-            subprocess.run([
-                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
-            ], capture_output=True)
-            print("✓ WhatsApp удален")
-            time.sleep(1)
-            
-            print("📱 Устанавливаю WhatsApp...")
-            install_whatsapp(device_name)
-            print("✓ WhatsApp установлен")
+            # 2. Сбросить данные WhatsApp (вместо переустановки)
+            print("🔄 Сбрасываю данные WhatsApp...")
+            subprocess.run([ADB_PATH, "-s", device_name, "shell", "pm", "clear", "com.whatsapp"], capture_output=True)
+            print("✓ Данные сброшены")
             
             # 4. Подключиться через Appium (к Settings, без запуска WA)
             # Примечание: connect_appium уже поправлен на com.android.settings
