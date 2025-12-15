@@ -12,6 +12,14 @@ from appium.webdriver.common.appiumby import AppiumBy
 ANDROID_HOME = os.getenv("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
 EMULATOR_PATH = os.path.join(ANDROID_HOME, "emulator", "emulator")
 
+# Путь к ADB (для Windows с MEMU)
+ADB_PATH = os.getenv("ADB_PATH") or "C:\\Program Files\\Microvirt\\MEmu\\adb.exe"
+if not os.path.exists(ADB_PATH):
+    # Пытаемся найти в Android SDK
+    ADB_PATH = os.path.join(ANDROID_HOME, "platform-tools", "adb.exe")
+if not os.path.exists(ADB_PATH):
+    ADB_PATH = ADB_PATH  # Fallback на обычный adb из PATH
+
 # MEMU device ID (замени на свой если другой инстанс)
 MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21513")
 USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
@@ -29,7 +37,7 @@ def start_emulator(avd_name: str, port: int = 5554, show_gui: bool = False):
     device_name = f"emulator-{port}"
     
     # Проверить не запущен ли уже эмулятор
-    result = subprocess.run(["adb", "devices"], capture_output=True, text=True)
+    result = subprocess.run([ADB_PATH, "devices"], capture_output=True, text=True)
     if f"{device_name}\tdevice" in result.stdout:
         print(f"✓ Эмулятор {device_name} уже запущен, переиспользую")
         return device_name
@@ -66,7 +74,7 @@ def start_emulator(avd_name: str, port: int = 5554, show_gui: bool = False):
     for i in range(max_attempts):
         try:
             result = subprocess.run(
-                ["adb", "-s", device_name, "shell", "getprop", "sys.boot_completed"],
+                [ADB_PATH, "-s", device_name, "shell", "getprop", "sys.boot_completed"],
                 capture_output=True,
                 text=True,
                 timeout=2
@@ -91,7 +99,7 @@ def install_accessibility_service(device_name: str):
     
     # Установка APK
     result = subprocess.run(
-        ["adb", "-s", device_name, "install", "-r", "wa_clicker.apk"],
+        [ADB_PATH, "-s", device_name, "install", "-r", "wa_clicker.apk"],
         capture_output=True,
         text=True
     )
@@ -107,7 +115,7 @@ def install_accessibility_service(device_name: str):
     
     # Получаем текущий список enabled services
     result = subprocess.run([
-        "adb", "-s", device_name, "shell", "settings", "get", "secure",
+        ADB_PATH, "-s", device_name, "shell", "settings", "get", "secure",
         "enabled_accessibility_services"
     ], capture_output=True, text=True)
     
@@ -118,12 +126,12 @@ def install_accessibility_service(device_name: str):
         new_services = "com.wa.clicker/com.wa.clicker.WAClickerService"
     
     subprocess.run([
-        "adb", "-s", device_name, "shell", "settings", "put", "secure",
+        ADB_PATH, "-s", device_name, "shell", "settings", "put", "secure",
         "enabled_accessibility_services", new_services
     ], capture_output=True)
     
     subprocess.run([
-        "adb", "-s", device_name, "shell", "settings", "put", "secure",
+        ADB_PATH, "-s", device_name, "shell", "settings", "put", "secure",
         "accessibility_enabled", "1"
     ], capture_output=True)
     
@@ -132,14 +140,14 @@ def install_accessibility_service(device_name: str):
     # ТРИГГЕР: Открываем настройки Accessibility чтобы сервис реально запустился
     print("🔄 Триггерю запуск сервиса через настройки...")
     subprocess.run([
-        "adb", "-s", device_name, "shell", "am", "start",
+        ADB_PATH, "-s", device_name, "shell", "am", "start",
         "-a", "android.settings.ACCESSIBILITY_SETTINGS"
     ], capture_output=True)
     time.sleep(2)
     
     # Закрываем настройки
     subprocess.run([
-        "adb", "-s", device_name, "shell", "input", "keyevent", "KEYCODE_HOME"
+        ADB_PATH, "-s", device_name, "shell", "input", "keyevent", "KEYCODE_HOME"
     ], capture_output=True)
     time.sleep(1)
     
@@ -150,7 +158,7 @@ def install_accessibility_service(device_name: str):
 def install_whatsapp(device_name: str):
     """Установить WhatsApp APK на эмулятор"""
     apk_path = "whatsapp.apk"  # Путь к APK файлу
-    subprocess.run(["adb", "-s", device_name, "install", apk_path], check=True)
+    subprocess.run([ADB_PATH, "-s", device_name, "install", apk_path], check=True)
     print(f"✓ WhatsApp установлен на {device_name}")
 
 
@@ -158,7 +166,7 @@ def open_whatsapp(device_name: str):
     """Открыть WhatsApp приложение"""
     try:
         subprocess.run(
-            ["adb", "-s", device_name, "shell", "am", "start", "-n", "com.whatsapp/.Main"],
+            [ADB_PATH, "-s", device_name, "shell", "am", "start", "-n", "com.whatsapp/.Main"],
             check=True,
         )
         print(f"✓ WhatsApp открыт на {device_name}")
@@ -174,7 +182,7 @@ def connect_appium(device_name: str, appium_port: int = 4723):
     print(f"⏳ Проверяю статус {device_name}...")
     for attempt in range(5):
         result = subprocess.run(
-            ["adb", "devices"],
+            [ADB_PATH, "devices"],
             capture_output=True,
             text=True
         )
@@ -186,9 +194,9 @@ def connect_appium(device_name: str, appium_port: int = 4723):
         if f"{device_name}\toffline" in result.stdout or device_name not in result.stdout:
             print(f"  ⚠️  Девайс offline, пытаюсь восстановить соединение ({attempt+1}/5)...")
             # Перезапускаем ADB сервер
-            subprocess.run(["adb", "kill-server"], capture_output=True)
+            subprocess.run([ADB_PATH, "kill-server"], capture_output=True)
             time.sleep(2)
-            subprocess.run(["adb", "start-server"], capture_output=True)
+            subprocess.run([ADB_PATH, "start-server"], capture_output=True)
             time.sleep(3)
         else:
             break
@@ -198,7 +206,7 @@ def connect_appium(device_name: str, appium_port: int = 4723):
     
     # Очищаем логи перед подключением (помогает UiAutomator2 запуститься быстрее)
     subprocess.run(
-        ["adb", "-s", device_name, "logcat", "-c"],
+        [ADB_PATH, "-s", device_name, "logcat", "-c"],
         capture_output=True
     )
     time.sleep(1)
@@ -228,7 +236,7 @@ def connect_appium(device_name: str, appium_port: int = 4723):
                 
                 # Очищаем логи
                 subprocess.run(
-                    ["adb", "-s", device_name, "logcat", "-c"],
+                    [ADB_PATH, "-s", device_name, "logcat", "-c"],
                     capture_output=True
                 )
                 time.sleep(2)
@@ -414,7 +422,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Попытка 1: По тексту
         print("   Клик по тексту 'Next'...")
         subprocess.run([
-            "adb", "-s", device_name, "shell", "am", "broadcast",
+            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
             "-a", "com.wa.clicker.CLICK",
             "--es", "find_by", "text",
             "--es", "value", "Next",
@@ -425,7 +433,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # # Попытка 2: По ID
         # print("   Попытка 2: Клик по ID...")
         # subprocess.run([
-        #     "adb", "-s", device_name, "shell", "am", "broadcast",
+        #     ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
         #     "-a", "com.wa.clicker.CLICK",
         #     "--es", "find_by", "id",
         #     "--es", "value", "com.whatsapp:id/registration_submit",
@@ -436,7 +444,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # # Попытка 3: По координатам
         # print("   Попытка 3: Клик по координатам...")
         # subprocess.run([
-        #     "adb", "-s", device_name, "shell", "am", "broadcast",
+        #     ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
         #     "-a", "com.wa.clicker.CLICK",
         #     "--es", "find_by", "coordinates",
         #     "--es", "value", "540,2148",
@@ -459,7 +467,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Используем exec-out для прямого вывода XML, с fallback на file-based метод
             try:
                 dump_result = subprocess.run(
-                    ["adb", "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
+                    [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -469,12 +477,12 @@ def click_next_button(driver, device_name: str, phone_number: str):
                 # Fallback: dump в файл и читаем
                 try:
                     subprocess.run(
-                        ["adb", "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"],
+                        [ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"],
                         capture_output=True,
                         timeout=10
                     )
                     dump_result = subprocess.run(
-                        ["adb", "-s", device_name, "shell", "cat", "/sdcard/window_dump.xml"],
+                        [ADB_PATH, "-s", device_name, "shell", "cat", "/sdcard/window_dump.xml"],
                         capture_output=True,
                         text=True,
                         timeout=10
@@ -502,7 +510,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Кликаем "Yes" для подтверждения номера
         print("⏳ Кликаю Yes для подтверждения номера...")
         subprocess.run([
-            "adb", "-s", device_name, "shell", "am", "broadcast",
+            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
             "-a", "com.wa.clicker.CLICK",
             "--es", "find_by", "text",
             "--es", "value", "Yes",
@@ -518,7 +526,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Кликаем "Verify another way" по resource-id
         print("⏳ Кликаю 'Verify another way'...")
         subprocess.run([
-            "adb", "-s", device_name, "shell", "am", "broadcast",
+            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
             "-a", "com.wa.clicker.CLICK",
             "--es", "find_by", "id",
             "--es", "value", "com.whatsapp:id/secondary_button",
@@ -532,7 +540,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Voice call LinearLayout: bounds="[44,1827][1036,1950]", центр: (540, 1889)
         print("\n⏳ Выбираю Voice call...")
         subprocess.run([
-            "adb", "-s", device_name, "shell", "input", "tap", "540", "1889"
+            ADB_PATH, "-s", device_name, "shell", "input", "tap", "540", "1889"
         ], capture_output=True)
         
         print("✓ Voice call выбран")
@@ -541,7 +549,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         # Нажимаем кнопку CONTINUE
         print("\n⏳ Нажимаю CONTINUE...")
         subprocess.run([
-            "adb", "-s", device_name, "shell", "am", "broadcast",
+            ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
             "-a", "com.wa.clicker.CLICK",
             "--es", "find_by", "id",
             "--es", "value", "com.whatsapp:id/continue_button",
@@ -568,7 +576,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
         
         while time.time() - start_time < max_wait:
             dump_result = subprocess.run(
-                ["adb", "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
+                [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
                 capture_output=True,
                 text=True,
                 timeout=10
@@ -609,7 +617,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             time.sleep(2)  # Ждём загрузки экрана ввода кода
             
             subprocess.run([
-                "adb", "-s", device_name, "shell", "am", "broadcast",
+                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
                 "-a", "com.wa.clicker.TYPE_TEXT",
                 "--es", "find_by", "id",
                 "--es", "value", "com.whatsapp:id/verify_sms_code_input",
@@ -631,7 +639,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             while time.time() - start_time < max_wait:
                 # Используем exec-out для прямого вывода XML
                 dump_result = subprocess.run(
-                    ["adb", "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
+                    [ADB_PATH, "-s", device_name, "exec-out", "uiautomator", "dump", "/dev/tty"],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -656,21 +664,21 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Диалог 1: Нажимаем "NOT NOW" на диалоге разрешений (Contacts)
             print("\n⏳ Закрываю диалог разрешений (NOT NOW)...")
             subprocess.run([
-                "adb", "-s", device_name, "shell", "input", "tap", "502", "1490"
+                ADB_PATH, "-s", device_name, "shell", "input", "tap", "502", "1490"
             ], capture_output=True)
             time.sleep(7)
             
             # Диалог 2: Нажимаем "CANCEL" на диалоге восстановления резервной копии
             print("⏳ Закрываю диалог восстановления резервной копии (CANCEL)...")
             subprocess.run([
-                "adb", "-s", device_name, "shell", "input", "tap", "504", "1465"
+                ADB_PATH, "-s", device_name, "shell", "input", "tap", "504", "1465"
             ], capture_output=True)
             time.sleep(7)
             
             # Ввод имени профиля
             print("\n⏳ Ввожу имя профиля...")
             subprocess.run([
-                "adb", "-s", device_name, "shell", "input", "tap", "518", "1054"
+                ADB_PATH, "-s", device_name, "shell", "input", "tap", "518", "1054"
             ], capture_output=True)
             time.sleep(3)
             
@@ -686,7 +694,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Нажимаем Next на экране Profile info
             print("\n⏳ Нажимаю Next на экране Profile info...")
             subprocess.run([
-                "adb", "-s", device_name, "shell", "am", "broadcast",
+                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
                 "-a", "com.wa.clicker.CLICK",
                 "--es", "find_by", "text",
                 "--es", "value", "Next",
@@ -699,7 +707,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Нажимаем Skip на экране Add your email
             print("\n⏳ Нажимаю Skip на экране Add your email...")
             subprocess.run([
-                "adb", "-s", device_name, "shell", "am", "broadcast",
+                ADB_PATH, "-s", device_name, "shell", "am", "broadcast",
                 "-a", "com.wa.clicker.CLICK",
                 "--es", "find_by", "text",
                 "--es", "value", "Skip",
@@ -721,13 +729,13 @@ def click_next_button(driver, device_name: str, phone_number: str):
                 # Дампим в файл и читаем (так надежнее чем exec-out)
                 try:
                     subprocess.run(
-                        ["adb", "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/check.xml"],
+                        [ADB_PATH, "-s", device_name, "shell", "uiautomator", "dump", "/sdcard/check.xml"],
                         capture_output=True,
                         timeout=10
                     )
                     
                     dump_result = subprocess.run(
-                        ["adb", "-s", device_name, "shell", "cat", "/sdcard/check.xml"],
+                        [ADB_PATH, "-s", device_name, "shell", "cat", "/sdcard/check.xml"],
                         capture_output=True,
                         text=True,
                         timeout=10
@@ -765,7 +773,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Удаляем WhatsApp для чистого следующего запуска
             print("\n⏳ Удаляю WhatsApp...")
             subprocess.run([
-                "adb", "-s", device_name, "uninstall", "com.whatsapp"
+                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
             ], capture_output=True)
             print("✓ WhatsApp удален")
             
@@ -775,7 +783,7 @@ def click_next_button(driver, device_name: str, phone_number: str):
             # Удаляем WhatsApp даже при ошибке
             print("\n⏳ Удаляю WhatsApp...")
             subprocess.run([
-                "adb", "-s", device_name, "uninstall", "com.whatsapp"
+                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
             ], capture_output=True)
             print("✓ WhatsApp удален")
         
@@ -854,7 +862,7 @@ def main():
             # 3. Удалить старый WhatsApp и переустановить
             print("\n🔄 Удаляю старый WhatsApp...")
             subprocess.run([
-                "adb", "-s", device_name, "uninstall", "com.whatsapp"
+                ADB_PATH, "-s", device_name, "uninstall", "com.whatsapp"
             ], capture_output=True)
             print("✓ WhatsApp удален")
             time.sleep(1)
@@ -903,7 +911,7 @@ def main():
                     # Убиваем текущий эмулятор
                     print(f"\n🔪 Убиваю эмулятор на порту {port}...")
                     subprocess.run(
-                        ["adb", "-s", device_name, "emu", "kill"],
+                        [ADB_PATH, "-s", device_name, "emu", "kill"],
                         capture_output=True,
                         timeout=10
                     )
@@ -952,7 +960,7 @@ def main():
                         # Убиваем текущий эмулятор
                         print(f"\n🔪 Убиваю эмулятор на порту {port}...")
                         subprocess.run(
-                            ["adb", "-s", device_name, "emu", "kill"],
+                            [ADB_PATH, "-s", device_name, "emu", "kill"],
                             capture_output=True,
                             timeout=10
                         )
