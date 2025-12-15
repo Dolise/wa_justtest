@@ -12,9 +12,17 @@ from appium.webdriver.common.appiumby import AppiumBy
 ANDROID_HOME = os.getenv("ANDROID_HOME") or os.path.expanduser("~/Library/Android/sdk")
 EMULATOR_PATH = os.path.join(ANDROID_HOME, "emulator", "emulator")
 
+# MEMU device ID (замени на свой если другой инстанс)
+MEMU_DEVICE = os.getenv("MEMU_DEVICE", "127.0.0.1:21513")
+USE_MEMU = os.getenv("USE_MEMU", "true").lower() in ["true", "1", "yes"]
+
 
 def start_emulator(avd_name: str, port: int = 5554, show_gui: bool = False):
-    """Запустить эмулятор Android"""
+    """Запустить эмулятор Android или вернуть MEMU device ID"""
+    if USE_MEMU:
+        print(f"✓ Используется MEMU: {MEMU_DEVICE}")
+        return MEMU_DEVICE
+    
     if not os.path.exists(EMULATOR_PATH):
         raise FileNotFoundError(f"Emulator not found at {EMULATOR_PATH}. Please install Android SDK.")
     
@@ -814,7 +822,7 @@ def main():
     phone_number = "79820079022"
     avd_name = "Pixel_4_API_26"
     port = 5554
-    device_name = f"emulator-{port}"
+    device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
     max_retries = 3
     attempt = 0
     success = False
@@ -824,6 +832,10 @@ def main():
     show_gui = os.getenv("SHOW_GUI", "false").lower() in ["true", "1", "yes"]
     if show_gui:
         print("🖥️  GUI режим включен (SHOW_GUI=true)")
+    
+    if USE_MEMU:
+        print(f"📱 Режим MEMU активирован, используется: {MEMU_DEVICE}")
+        max_retries = 1  # Для MEMU достаточно одной попытки
     
     while attempt < max_retries:
         attempt += 1
@@ -877,6 +889,11 @@ def main():
         except Exception as e:
             error_msg = str(e)
             print(f"\n❌ Ошибка на попытке {attempt}: {error_msg}")
+            
+            # Для MEMU не пересоздаём, просто выходим
+            if USE_MEMU:
+                print("❌ MEMU требует ручного перезапуска. Завершаю.")
+                break
             
             # Проверяем была ли это блокировка от WhatsApp ИЛИ эмулятор не поднялся
             if "WhatsApp blocked login" in error_msg or "Emulator failed to start" in error_msg:
