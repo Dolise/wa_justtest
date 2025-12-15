@@ -41,9 +41,9 @@ def try_find_voice_call(driver, device):
         rect = radio.rect
         tap_x = rect["x"] + rect["width"] // 2
         tap_y = rect["y"] + rect["height"] // 2
-        adb = os.getenv("ADB_PATH", "adb")
+        adb = r"C:\Program Files\Microvirt\MEmu\adb.exe"
         subprocess.run([adb, "-s", device, "shell", "input", "tap", str(tap_x), str(tap_y)], check=True)
-        print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y})")
+        print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y}) через {adb}")
         return True
     except Exception as e:
         print(f"MISS 'Аудиозвонок': {e}")
