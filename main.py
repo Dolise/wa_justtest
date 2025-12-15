@@ -538,39 +538,18 @@ def click_next_button(driver, device_name: str, phone_number: str):
         else:
             print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
         
-        # Выбираем "Voice call" радиобаттон
-        print("\n⏳ Ищу 'Voice call' / 'Аудиозвонок' (radio)...")
-        voice_btn = None
-        # Прямо по resource-id текста варианта
-        voice_selectors = [
-            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").text("Аудиозвонок")',
-            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Voice call")',
-            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Аудио")',
-            'new UiSelector().resourceId("com.whatsapp:id/reg_method_name").textContains("Voice")',
-        ]
-        for sel in voice_selectors:
-            try:
-                voice_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
-                print(f"✓ Найдено по селектору: {sel}")
-                break
-            except Exception:
-                continue
-        if voice_btn:
-            voice_btn.click()
-            print("✓ Выбран голосовой звонок")
+        # Выбираем "Аудиозвонок" (кликаем по строке списка)
+        print("\n⏳ Ищу 'Аудиозвонок' (строка списка)...")
+        try:
+            voice_row = driver.find_element(
+                AppiumBy.XPATH,
+                '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
+            )
+            voice_row.click()
+            print("✓ Выбрана строка 'Аудиозвонок'")
             time.sleep(2)
-        else:
-            # Фолбэк: кликаем последний radio по id чекбокса
-            try:
-                radios = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")')
-                if radios:
-                    radios[-1].click()
-                    print("✓ Клик по последнему radio (fallback)")
-                    time.sleep(2)
-                else:
-                    print("⚠️  Радио не найдено вовсе")
-            except Exception as e:
-                print(f"⚠️  Не удалось кликнуть radio fallback: {e}")
+        except Exception as e:
+            print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
         
         # Нажимаем CONTINUE
         print("\n⏳ Ищу кнопку 'CONTINUE' / 'Продолжить'...")
