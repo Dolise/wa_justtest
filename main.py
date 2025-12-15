@@ -858,7 +858,7 @@ def main():
             driver = connect_appium(device_name)
             
             # 6. Кликнуть "Согласиться"
-            click_agree_button(device_name)
+            click_agree_button(driver)
             
             # 7. Ввести номер телефона
             enter_phone_number(driver, phone_number)
