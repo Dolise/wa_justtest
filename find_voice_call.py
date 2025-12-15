@@ -24,28 +24,24 @@ def connect_driver(device_name: str):
 def try_find_voice_call(driver):
     """
     Кликаем вариант "Аудиозвонок":
-    1) Сначала жмём на всю строку (LinearLayout) с reg_method_name="Аудиозвонок"
-    2) Если не сработало — кликаем radio внутри этой строки
+    - находим строку, где reg_method_name = "Аудиозвонок"
+    - берём её checkbox (reg_method_checkbox)
+    - тапаем по центру checkbox (координаты)
     """
     try:
         row = driver.find_element(
             AppiumBy.XPATH,
             '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
         )
-        # Попытка 1: клик по строке
-        try:
-            row.click()
-            print("✓ Клик по строке 'Аудиозвонок'")
-            return True
-        except Exception:
-            pass
-        # Попытка 2: клик по radio внутри
         radio = row.find_element(
             AppiumBy.ANDROID_UIAUTOMATOR,
             'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
         )
-        radio.click()
-        print("✓ Клик по radio 'Аудиозвонок'")
+        box = radio.rect
+        tap_x = box["x"] + box["width"] // 2
+        tap_y = box["y"] + box["height"] // 2
+        driver.tap([(tap_x, tap_y)])
+        print(f"✓ Tap по checkbox 'Аудиозвонок' @ ({tap_x}, {tap_y})")
         return True
     except Exception as e:
         print(f"MISS 'Аудиозвонок': {e}")
