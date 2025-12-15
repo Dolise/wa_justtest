@@ -222,8 +222,8 @@ def register_whatsapp(adb: ADBController, phone_number: str):
 
     # 4. Жмем NEXT
     print("⏳ Жму 'Next'...")
-    if not adb.click_element(text="Next", timeout=5):
-        adb.click_element(text="Далее", timeout=1)
+    if not adb.click_element(text="Далее", timeout=5):
+        adb.click_element(text="Next", timeout=1)
         # Фолбэк по ID
         adb.click_element(resource_id="com.whatsapp:id/registration_submit", timeout=1)
     
@@ -295,6 +295,37 @@ def register_whatsapp(adb: ADBController, phone_number: str):
         # Пробуем просто ввести текст
         adb.text(code)
         print("⌨️ Код введен")
+        
+        # 9. Финализация (Ввод имени)
+        print("\n⏳ Жду экран ввода имени (до 40 сек)...")
+        if adb.wait_for_element(resource_id="com.whatsapp:id/registration_name", timeout=40) or \
+           adb.wait_for_element(text="Type your name here", timeout=1) or \
+           adb.wait_for_element(text="Введите ваше имя", timeout=1):
+            
+            print("✓ Экран ввода имени найден")
+            time.sleep(1)
+            
+            # Клик в поле (на всякий случай)
+            adb.click_element(resource_id="com.whatsapp:id/registration_name", timeout=2)
+            
+            # Ввод имени
+            adb.text("Alex")
+            print("✓ Имя 'Alex' введено")
+            adb.keyevent(66) # ENTER (скрыть клаву / подтвердить)
+            time.sleep(1)
+            
+            # Жмем Далее
+            if adb.click_element(text="Next", timeout=5) or \
+               adb.click_element(text="Далее", timeout=1) or \
+               adb.click_element(resource_id="com.whatsapp:id/register_name_accept", timeout=1):
+                print("✓ Нажато 'Далее'")
+                time.sleep(5)
+                return True
+            else:
+                print("⚠️ Кнопка 'Далее' не найдена")
+        else:
+            print("⚠️ Экран ввода имени не появился за 40 сек")
+
         return True
     else:
         print("❌ Звонок не прошел")
