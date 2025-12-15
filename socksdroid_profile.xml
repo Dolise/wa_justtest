@@ -8,4 +8,11 @@
     <boolean name="isUDP" value="false" />
     <boolean name="isIPv6" value="false" />
     <string name="route">all</string>
+    <boolean name="isBypassApps" value="true" />
+    <set name="bypassAppList">
+        <string>io.appium.uiautomator2.server</string>
+        <string>io.appium.uiautomator2.server.test</string>
+        <string>io.appium.settings</string>
+        <string>com.android.shell</string>
+    </set>
 </map>
