@@ -538,24 +538,30 @@ def click_next_button(driver, device_name: str, phone_number: str):
         else:
             print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
         
-        # Выбираем "Аудиозвонок" (тап по чекбоксу через его реальные координаты)
-        print("\n⏳ Ищу 'Аудиозвонок' и тапаю по чекбоксу...")
+        # Выбираем "Аудиозвонок" по индексам name/checkbox и жмём через MEmu adb
+        print("\n⏳ Ищу 'Аудиозвонок' и тапаю по чекбоксу (adb)...")
         try:
-            voice_row = driver.find_element(
-                AppiumBy.XPATH,
-                '//android.widget.LinearLayout[.//android.widget.TextView[@resource-id="com.whatsapp:id/reg_method_name" and @text="Аудиозвонок"]]'
-            )
-            voice_checkbox = voice_row.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")'
-            )
-            box = voice_checkbox.rect
-            tap_x = box["x"] + box["width"] // 2
-            tap_y = box["y"] + box["height"] // 2
-            # Жмём через adb, чтобы избежать закрытия шторки Appium-тачем
-            subprocess.run([ADB_PATH, "-s", device_name, "shell", "input", "tap", str(tap_x), str(tap_y)], capture_output=True)
-            print(f"✓ Тап по 'Аудиозвонок' через adb @ ({tap_x},{tap_y})")
-            time.sleep(3)  # даём время зафиксировать выбор перед Continue
+            names = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_name")')
+            boxes = driver.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("com.whatsapp:id/reg_method_checkbox")')
+            target_idx = None
+            for idx, el in enumerate(names):
+                try:
+                    txt = el.text
+                except Exception:
+                    txt = ""
+                print(f"[{idx}] reg_method_name='{txt}'")
+                if txt.strip() == "Аудиозвонок":
+                    target_idx = idx
+            if target_idx is not None and target_idx < len(boxes):
+                rect = boxes[target_idx].rect
+                tap_x = rect["x"] + rect["width"] // 2
+                tap_y = rect["y"] + rect["height"] // 2
+                adb_cmd = os.getenv("ADB_PATH") or r"C:\Program Files\Microvirt\MEmu\adb.exe"
+                subprocess.run([adb_cmd, "-s", device_name, "shell", "input", "tap", str(tap_x), str(tap_y)], check=True)
+                print(f"✓ adb tap 'Аудиозвонок' @ ({tap_x},{tap_y}) через {adb_cmd}")
+                time.sleep(3)  # даём время зафиксировать выбор перед Continue
+            else:
+                print("⚠️ 'Аудиозвонок' не найден среди reg_method_name")
         except Exception as e:
             print(f"⚠️  Не удалось выбрать 'Аудиозвонок': {e}")
         
