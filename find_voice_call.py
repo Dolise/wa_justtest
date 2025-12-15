@@ -21,12 +21,12 @@ def connect_driver(device_name: str):
     return webdriver.Remote("http://localhost:4723", caps)
 
 
-def try_find_voice_call(driver):
+def try_find_voice_call(driver, device):
     """
     Кликаем вариант "Аудиозвонок":
     - находим строку, где reg_method_name = "Аудиозвонок"
     - берём её checkbox (reg_method_checkbox)
-    - тапаем по центру checkbox (координаты)
+    - тапаем по центру checkbox (координаты) через adb, чтобы не схлопывалась шторка
     """
     try:
         row = driver.find_element(
@@ -40,8 +40,9 @@ def try_find_voice_call(driver):
         box = radio.rect
         tap_x = box["x"] + box["width"] // 2
         tap_y = box["y"] + box["height"] // 2
-        driver.tap([(tap_x, tap_y)])
-        print(f"✓ Tap по checkbox 'Аудиозвонок' @ ({tap_x}, {tap_y})")
+        adb = os.getenv("ADB_PATH", "adb")
+        os.system(f'"{adb}" -s {device} shell input tap {tap_x} {tap_y}')
+        print(f"✓ Tap по checkbox 'Аудиозвонок' через adb @ ({tap_x}, {tap_y})")
         return True
     except Exception as e:
         print(f"MISS 'Аудиозвонок': {e}")
@@ -76,7 +77,7 @@ def main():
         sys.exit(1)
 
     try:
-        ok_voice = try_find_voice_call(driver)
+        ok_voice = try_find_voice_call(driver, device)
         if not ok_voice:
             print("Voice call NOT clicked")
     finally:
