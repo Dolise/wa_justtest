@@ -155,6 +155,132 @@ def install_accessibility_service(device_name: str):
     return True
 
 
+def setup_superproxy(driver):
+    """Настройка SuperProxy через Appium"""
+    print("\n🌍 Настраиваю SuperProxy...")
+    
+    try:
+        # Запускаем SuperProxy
+        driver.activate_app("com.schemeticulous.superproxy")
+        time.sleep(5)
+        
+        # Данные прокси
+        PROXY_HOST = "na.proxy.piaproxy.com"
+        PROXY_PORT = "5000"
+        PROXY_USER = "user-mtt33_A0xiF-region-ru"
+        PROXY_PASS = "nskjfdbnker4G"
+        
+        # 1. Удаляем старые профили (если есть) - опционально, но лучше для чистоты
+        # (Пропускаем для упрощения, считаем что свежий инстанс)
+        
+        # 2. Жмем "Add proxy" (кнопка + или текст Add)
+        # В SuperProxy обычно кнопка добавления внизу или в меню
+        # Ищем кнопку добавления (обычно FAB с id fab_add или text Add)
+        try:
+            add_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/fab_add")
+            add_btn.click()
+            print("✓ Нажата кнопка 'Add Proxy'")
+            time.sleep(2)
+        except:
+            print("⚠️ Кнопка Add не найдена, возможно профиль уже создан. Пробую редактировать...")
+            # Попробуем кликнуть по первому элементу в списке
+            try:
+                first_item = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_list_item")
+                first_item.click()
+            except:
+                print("❌ Не удалось открыть создание/редактирование профиля")
+                return False
+
+        # 3. Заполняем поля
+        # Profile Name
+        try:
+            name_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/profile_name")
+            name_field.clear()
+            name_field.send_keys("MyProxy")
+        except: pass
+
+        # Protocol (SOCKS5)
+        # Обычно там спиннер.
+        try:
+            proto_spinner = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_type")
+            proto_spinner.click()
+            time.sleep(1)
+            socks5_opt = driver.find_element(AppiumBy.XPATH, "//android.widget.CheckedTextView[@text='SOCKS5']")
+            socks5_opt.click()
+            print("✓ Выбран протокол SOCKS5")
+        except: pass
+
+        # Host
+        host_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_host")
+        host_field.clear()
+        host_field.send_keys(PROXY_HOST)
+        
+        # Port
+        port_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_port")
+        port_field.clear()
+        port_field.send_keys(PROXY_PORT)
+        
+        # Auth
+        # Нужно включить Authentication (обычно чекбокс)
+        try:
+            auth_check = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/auth_required")
+            if not auth_check.get_attribute("checked") == "true":
+                auth_check.click()
+        except: pass
+        
+        # User
+        user_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_user")
+        user_field.clear()
+        user_field.send_keys(PROXY_USER)
+        
+        # Pass
+        pass_field = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/proxy_pass")
+        pass_field.clear()
+        pass_field.send_keys(PROXY_PASS)
+        
+        # Save (дискета сверху)
+        save_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_save")
+        save_btn.click()
+        print("✓ Настройки прокси сохранены")
+        time.sleep(2)
+        
+        # 4. Запускаем (Start)
+        # Обычно кнопка Start в списке или переключатель
+        # В SuperProxy нужно нажать на профиль -> Start, или выбрать и нажать Start
+        try:
+            # Ищем наш профиль и кнопку Start (обычно она появляется после выбора)
+            # Или просто жмём Start если это главный экран
+            start_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_start") # Если есть глобальная кнопка
+            start_btn.click()
+        except:
+            # Если нет глобальной, пробуем кликнуть по профилю и там Start
+            try:
+                # В SuperProxy часто надо нажать на элемент списка, чтобы он стал активным ("Selected")
+                # И потом нажать Start
+                item = driver.find_element(AppiumBy.XPATH, "//android.widget.TextView[@text='MyProxy']")
+                item.click()
+                time.sleep(1)
+                start_btn = driver.find_element(AppiumBy.ID, "com.schemeticulous.superproxy:id/action_start")
+                start_btn.click()
+            except:
+                print("⚠️ Не удалось найти кнопку старт, возможно уже запущен")
+
+        print("✓ Прокси запущен (надеюсь)")
+        
+        # Сворачиваем (Home)
+        driver.press_keycode(3) 
+        time.sleep(1)
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка настройки прокси: {e}")
+        # Делаем скриншот для отладки
+        try:
+            driver.save_screenshot("proxy_error.png")
+        except: pass
+        return False
+
+
 def install_whatsapp(device_name: str):
     """Установить WhatsApp APK на эмулятор"""
     apk_path = "whatsapp.apk"  # Путь к APK файлу
@@ -216,10 +342,9 @@ def connect_appium(device_name: str, appium_port: int = 4723):
         "automationName": "UiAutomator2",
         "deviceName": device_name,
         "udid": device_name,
-        "appPackage": "com.whatsapp",
-        # Запущено заранее через open_whatsapp; просто прикрепляемся
-        "autoLaunch": False,
-        "appActivity": "com.whatsapp.Main",
+        "appPackage": "com.android.settings",  # Подключаемся к настройкам, а не к WA
+        "appActivity": ".Settings",
+        "autoLaunch": False,  # Не запускать настройки принудительно
         "appWaitActivity": "*",
         "noReset": True,
         "fullReset": False,
