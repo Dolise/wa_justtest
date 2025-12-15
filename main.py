@@ -474,15 +474,29 @@ def click_next_button(driver, device_name: str, phone_number: str):
         print("\n⏳ Жду экрана 'Connecting...' (макс 20 сек)...")
         time.sleep(2)
         
-        # Ищем и кликаем "Yes" для подтверждения номера
-        print("⏳ Ищу кнопку 'Yes'...")
-        try:
-            yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Yes").clickable(true)')
+        # Ищем и кликаем "Yes"/"Да" для подтверждения номера
+        print("⏳ Ищу кнопку 'Yes'/'Да'...")
+        yes_btn = None
+        yes_selectors = [
+            'new UiSelector().text("Yes").clickable(true)',
+            'new UiSelector().text("Да").clickable(true)',
+            'new UiSelector().textContains("Yes").clickable(true)',
+            'new UiSelector().textContains("Да").clickable(true)',
+            'new UiSelector().resourceId("android:id/button1").clickable(true)',
+        ]
+        for sel in yes_selectors:
+            try:
+                yes_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                print(f"✓ Найдена кнопка по селектору: {sel}")
+                break
+            except Exception:
+                continue
+        if yes_btn:
             yes_btn.click()
-            print("✓ Нажата кнопка 'Yes'")
+            print("✓ Нажата кнопка подтверждения")
             time.sleep(3)
-        except:
-            print("⚠️  Кнопка 'Yes' не найдена")
+        else:
+            print("⚠️  Кнопка 'Yes'/'Да' не найдена")
         
         # Ждём экрана с кнопкой "Verify another way"
         print("\n⏳ Жду экрана с разрешениями (макс 10 сек)...")
