@@ -516,33 +516,74 @@ def click_next_button(driver, device_name: str, phone_number: str):
         
         # Ищем и кликаем "Verify another way"
         print("⏳ Ищу кнопку 'Verify another way'...")
-        try:
-            verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Verify another way").clickable(true)')
+        verify_btn = None
+        verify_selectors = [
+            'new UiSelector().text("Verify another way").clickable(true)',
+            'new UiSelector().text("Подтвердить другим способом").clickable(true)',
+            'new UiSelector().textContains("Verify").clickable(true)',
+            'new UiSelector().textContains("другим способом").clickable(true)',
+            'new UiSelector().resourceId("com.whatsapp:id/secondary_button").clickable(true)',
+        ]
+        for sel in verify_selectors:
+            try:
+                verify_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                print(f"✓ Найдена кнопка по селектору: {sel}")
+                break
+            except Exception:
+                continue
+        if verify_btn:
             verify_btn.click()
             print("✓ Нажата кнопка 'Verify another way'")
             time.sleep(3)
-        except:
-            print("⚠️  Кнопка 'Verify another way' не найдена")
+        else:
+            print("⚠️  Кнопка 'Verify another way/Подтвердить другим способом' не найдена")
         
         # Выбираем "Voice call"
-        print("\n⏳ Ищу 'Voice call'...")
-        try:
-            voice_call = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Voice call").clickable(true)')
-            voice_call.click()
-            print("✓ Выбран 'Voice call'")
+        print("\n⏳ Ищу 'Voice call' / 'Аудиозвонок'...")
+        voice_btn = None
+        voice_selectors = [
+            'new UiSelector().text("Voice call").clickable(true)',
+            'new UiSelector().text("Аудиозвонок").clickable(true)',
+            'new UiSelector().textContains("Voice").clickable(true)',
+            'new UiSelector().textContains("аудио").clickable(true)',
+        ]
+        for sel in voice_selectors:
+            try:
+                voice_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                print(f"✓ Найдено по селектору: {sel}")
+                break
+            except Exception:
+                continue
+        if voice_btn:
+            voice_btn.click()
+            print("✓ Выбран голосовой звонок")
             time.sleep(2)
-        except:
-            print("⚠️  'Voice call' не найден")
+        else:
+            print("⚠️  'Voice call'/'Аудиозвонок' не найден")
         
         # Нажимаем CONTINUE
-        print("\n⏳ Ищу кнопку 'CONTINUE'...")
-        try:
-            continue_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("CONTINUE").clickable(true)')
-            continue_btn.click()
-            print("✓ Нажата кнопка 'CONTINUE'")
+        print("\n⏳ Ищу кнопку 'CONTINUE' / 'Продолжить'...")
+        cont_btn = None
+        cont_selectors = [
+            'new UiSelector().text("CONTINUE").clickable(true)',
+            'new UiSelector().text("Продолжить").clickable(true)',
+            'new UiSelector().textContains("CONTINUE").clickable(true)',
+            'new UiSelector().textContains("родолж").clickable(true)',
+            'new UiSelector().resourceId("com.whatsapp:id/continue_button").clickable(true)',
+        ]
+        for sel in cont_selectors:
+            try:
+                cont_btn = driver.find_element(AppiumBy.ANDROID_UIAUTOMATOR, sel)
+                print(f"✓ Найдена кнопка по селектору: {sel}")
+                break
+            except Exception:
+                continue
+        if cont_btn:
+            cont_btn.click()
+            print("✓ Нажата кнопка 'CONTINUE/Продолжить'")
             time.sleep(3)
-        except:
-            print("⚠️  Кнопка 'CONTINUE' не найдена")
+        else:
+            print("⚠️  Кнопка 'CONTINUE/Продолжить' не найдена")
         
         # Ждём код верификации
         print("\n⏳ Ожидаю звонок и код верификации...")
@@ -603,7 +644,7 @@ def print_page_dump(driver):
 
 
 def main():
-    phone_number = "79820079022"
+    phone_number = "79120985776"
     avd_name = "Pixel_4_API_26"
     port = 5554
     device_name = MEMU_DEVICE if USE_MEMU else f"emulator-{port}"
