@@ -1,0 +1,7 @@
+appium-python-client==2.11.1
+selenium==4.15.2
+requests
+redis==5.0.1
+fastapi==0.124.2
+uvicorn==0.38.0
+pydantic==2.12.5
