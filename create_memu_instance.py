@@ -19,8 +19,21 @@ def run_memuc(args):
     return result.stdout.strip()
 
 def main():
-    print("🚀 Создаю новый инстанс MEmu...")
+    import sys
+    count = 1
+    if len(sys.argv) > 1:
+        try:
+            count = int(sys.argv[1])
+        except ValueError:
+            print("⚠️ Некорректное число, создаю 1 инстанс")
+    
+    print(f"🚀 Запускаю создание {count} инстансов MEmu...")
+    
+    for i in range(count):
+        print(f"\n--- Инстанс {i+1} из {count} ---")
+        create_one_instance()
 
+def create_one_instance():
     # 1. Создаем Android 9.0 64-bit (код версии 96)
     # Коды: 51=Android 5, 71=Android 7 (32), 76=Android 7 (64), 96=Android 9 (64)
     output = run_memuc(["create", "96"])
@@ -177,9 +190,6 @@ def main():
 
     print("\n" + "="*40)
     print(f"✅ Готово! Новый девайс запущен.")
-    print("="*40)
-    # Вывод в формате, готовом для вставки в main.py
-    print(f'MEMU_DEVICE = "{device_name}"')
     print("="*40)
 
 if __name__ == "__main__":
